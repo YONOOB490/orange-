@@ -7,7 +7,7 @@ local KEY_1 = "67"
 local KEY_2 = "mango"
 local SONG_ID = 104846670980072
 local COUNTDOWN_TIME = 80
-local HINT_TEXT = "มีม มะม่วง"
+local HINT_TEXT = "6- ma---"
 
 --// Services
 local Players = game:GetService("Players")
