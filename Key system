@@ -1,0 +1,333 @@
+--// ELITE HACKER KEY SYSTEM v2.0
+--// Conglomerate Security Bypass Protocol
+--// λ Conglomerate 2024 | "Patience is a hacker's greatest weapon"
+
+--// Configuration
+local KEY_1 = "67"
+local KEY_2 = "mango"
+local SONG_ID = 104846670980072
+local COUNTDOWN_TIME = 80
+local HINT_TEXT = "มีม มะม่วง"
+
+--// Services
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+--// Anti-Duplicate Execution Shield
+if _G.KeySystemActive then
+    warn("[λ] PROTOCOL ALREADY RUNNING! ABORTING...")
+    return
+end
+_G.KeySystemActive = true
+
+--// Utility Functions
+local function createSound()
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://" .. SONG_ID
+    sound.Volume = 0.7
+    sound.Looped = true
+    sound.Parent = SoundService
+    return sound
+end
+
+local function typewriter(label, text, speed)
+    label.Text = ""
+    for i = 1, #text do
+        label.Text = string.sub(text, 1, i)
+        wait(speed)
+    end
+end
+
+local function rainbowEffect(label)
+    spawn(function()
+        while label.Parent do
+            for hue = 0, 1, 0.01 do
+                label.TextColor3 = Color3.fromHSV(hue, 1, 1)
+                wait(0.03)
+            end
+        end
+    end)
+end
+
+--// Interface Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ConglomerateKeySystem"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 550, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+--// Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -15, 1, 0)
+Title.Position = UDim2.new(0, 15, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "[λ] CONGLOMERATE ACCESS PROTOCOL v2.0"
+Title.TextColor3 = Color3.fromRGB(0, 255, 136)
+Title.TextSize = 18
+Title.Font = Enum.Font.Code
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
+
+rainbowEffect(Title)
+
+--// Status LED
+local StatusLED = Instance.new("Frame")
+StatusLED.Size = UDim2.new(0, 14, 0, 14)
+StatusLED.Position = UDim2.new(1, -35, 0.5, -7)
+StatusLED.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+StatusLED.Parent = TopBar
+Instance.new("UICorner", StatusLED).CornerRadius = UDim.new(1, 0)
+
+--// Content Area
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, 0, 1, -45)
+Content.Position = UDim2.new(0, 0, 0, 45)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
+
+--// Matrix Background Effect
+local MatrixLabel = Instance.new("TextLabel")
+MatrixLabel.Size = UDim2.new(1, 0, 0, 80)
+MatrixLabel.BackgroundTransparency = 1
+MatrixLabel.Text = string.rep("[010101] ", 50)
+MatrixLabel.TextColor3 = Color3.fromRGB(0, 50, 0)
+MatrixLabel.TextSize = 10
+MatrixLabel.Font = Enum.Font.Code
+MatrixLabel.TextWrapped = true
+MatrixLabel.Parent = Content
+
+--// Hint Display
+local HintLabel = Instance.new("TextLabel")
+HintLabel.Size = UDim2.new(1, -20, 0, 35)
+HintLabel.Position = UDim2.new(0, 10, 0, 90)
+HintLabel.BackgroundTransparency = 1
+HintLabel.Text = "HINT: " .. HINT_TEXT
+HintLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+HintLabel.TextSize = 20
+HintLabel.Font = Enum.Font.Code
+HintLabel.Parent = Content
+
+--// Key Input Field
+local KeyInput = Instance.new("TextBox")
+KeyInput.Size = UDim2.new(1, -20, 0, 45)
+KeyInput.Position = UDim2.new(0, 10, 0, 140)
+KeyInput.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+KeyInput.BorderSizePixel = 0
+KeyInput.PlaceholderText = "[ENTER ACCESS KEY...]"
+KeyInput.Text = ""
+KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyInput.TextSize = 18
+KeyInput.Font = Enum.Font.Code
+KeyInput.Parent = Content
+Instance.new("UICorner", KeyInput).CornerRadius = UDim.new(0, 6)
+
+--// Submit Button
+local SubmitBtn = Instance.new("TextButton")
+SubmitBtn.Size = UDim2.new(1, -20, 0, 45)
+SubmitBtn.Position = UDim2.new(0, 10, 0, 195)
+SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
+SubmitBtn.BorderSizePixel = 0
+SubmitBtn.Text = "[λ] INITIATE BYPASS SEQUENCE"
+SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SubmitBtn.TextSize = 18
+SubmitBtn.Font = Enum.Font.Code
+SubmitBtn.Parent = Content
+Instance.new("UICorner", SubmitBtn).CornerRadius = UDim.new(0, 6)
+
+--// Countdown Timer
+local Countdown = Instance.new("TextLabel")
+Countdown.Size = UDim2.new(1, -20, 0, 35)
+Countdown.Position = UDim2.new(0, 10, 0, 250)
+Countdown.BackgroundTransparency = 1
+Countdown.Text = "AUTO-BYPASS IN: 80s"
+Countdown.TextColor3 = Color3.fromRGB(255, 0, 0)
+Countdown.TextSize = 18
+Countdown.Font = Enum.Font.Code
+Countdown.Parent = Content
+
+--// Status Console
+local Console = Instance.new("TextLabel")
+Console.Size = UDim2.new(1, -20, 0, 70)
+Console.Position = UDim2.new(0, 10, 0, 295)
+Console.BackgroundTransparency = 1
+Console.Text = ">> AWAITING OPERATOR INPUT..."
+Console.TextColor3 = Color3.fromRGB(0, 255, 136)
+Console.TextSize = 14
+Console.Font = Enum.Font.Code
+Console.TextWrapped = true
+Console.TextYAlignment = Enum.TextYAlignment.Top
+Console.Parent = Content
+
+--// Bottom Bar
+local BottomBar = Instance.new("Frame")
+BottomBar.Size = UDim2.new(1, 0, 0, 35)
+BottomBar.Position = UDim2.new(0, 0, 1, -35)
+BottomBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+BottomBar.BorderSizePixel = 0
+BottomBar.Parent = MainFrame
+
+local BottomText = Instance.new("TextLabel")
+BottomText.Size = UDim2.new(1, -10, 1, 0)
+BottomText.Position = UDim2.new(0, 10, 0, 0)
+BottomText.BackgroundTransparency = 1
+BottomText.Text = ">> PROTECTION: OBFUSCATED | STATUS: ENCRYPTED <<"
+BottomText.TextColor3 = Color3.fromRGB(100, 255, 100)
+BottomText.TextSize = 12
+BottomText.Font = Enum.Font.Code
+BottomText.TextXAlignment = Enum.TextXAlignment.Left
+BottomText.Parent = BottomBar
+
+--// Audio & State Management
+local bgSound = nil
+local isPlaying = false
+
+local function playAudio()
+    if not isPlaying then
+        isPlaying = true
+        bgSound = createSound()
+        bgSound:Play()
+        typewriter(Console, ">> AUDIO COUNTERMEASURES DEPLOYED\n>> TRACK ID: " .. SONG_ID, 0.03)
+    end
+end
+
+local function stopAudio()
+    if bgSound then
+        bgSound:Stop()
+        bgSound:Destroy()
+        isPlaying = false
+    end
+end
+
+--// Initialization Sequence
+spawn(function()
+    wait(0.5)
+    typewriter(Console, ">> INITIALIZING CONGLOMERATE PROTOCOL...\n>> HINT: " .. HINT_TEXT .. "\n>> AWAITING ACCESS KEY", 0.04)
+    playAudio()
+end)
+
+--// Countdown Engine
+local timeRemaining = COUNTDOWN_TIME
+local countdownRunning = true
+
+spawn(function()
+    while countdownRunning and timeRemaining > 0 do
+        wait(1)
+        timeRemaining = timeRemaining - 1
+        Countdown.Text = string.format("AUTO-BYPASS IN: %ds", timeRemaining)
+        
+        --// Critical Warning Effect
+        if timeRemaining <= 10 then
+            Countdown.TextColor3 = Color3.fromRGB(255, 0, 0)
+            wait(0.2)
+            Countdown.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+    end
+    
+    if countdownRunning then
+        countdownRunning = false
+        stopAudio()
+        TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundColor3 = Color3.fromRGB(0, 30, 0)}):Play()
+        Console.TextColor3 = Color3.fromRGB(0, 255, 0)
+        typewriter(Console, ">> TEMPORAL BYPASS SUCCESSFUL!\n>> ACCESS GRANTED BY PATIENCE\n>> WELCOME, OPERATIVE", 0.03)
+        wait(2)
+        ScreenGui:Destroy()
+        warn("\n[λ] SYSTEM UNLOCKED - EXECUTE MAIN PAYLOAD\n[λ] CONGLOMERATE PROTOCOL TERMINATED\n")
+    end
+end)
+
+--// Key Validation Engine
+local function checkKey(key)
+    return tostring(key):lower() == KEY_1 or tostring(key):lower() == KEY_2
+end
+
+--// Submit Handler
+SubmitBtn.MouseButton1Click:Connect(function()
+    local key = KeyInput.Text
+    if checkKey(key) then
+        countdownRunning = false
+        stopAudio()
+        TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundColor3 = Color3.fromRGB(0, 30, 0)}):Play()
+        Console.TextColor3 = Color3.fromRGB(0, 255, 0)
+        typewriter(Console, ">> VALID KEY CONFIRMED: " .. key:upper() .. "\n>> BYPASSING SECURITY LAYERS...\n>> ACCESS GRANTED!", 0.03)
+        wait(2)
+        ScreenGui:Destroy()
+        warn("\n[λ] SYSTEM UNLOCKED - EXECUTE MAIN PAYLOAD\n[λ] CONGLOMERATE PROTOCOL TERMINATED\n")
+    else
+        Console.TextColor3 = Color3.fromRGB(255, 0, 0)
+        typewriter(Console, ">> INVALID KEY: " .. key .. "\n>> ATTEMPT LOGGED\n>> AWAITING AUTO-BYPASS...", 0.02)
+        KeyInput.Text = ""
+        TweenService:Create(KeyInput, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(60, 0, 0)}):Play()
+        wait(0.5)
+        TweenService:Create(KeyInput, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(25, 25, 25)}):Play()
+    end
+end)
+
+KeyInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then SubmitBtn:Click() end
+end)
+
+--// Hover Effects
+SubmitBtn.MouseEnter:Connect(function()
+    TweenService:Create(SubmitBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 140, 255)}):Play()
+end)
+
+SubmitBtn.MouseLeave:Connect(function()
+    TweenService:Create(SubmitBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 100, 255)}):Play()
+end)
+
+--// Draggable Interface
+local drag, startPos, startMouse = false, nil, nil
+
+TopBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        drag = true
+        startPos = MainFrame.Position
+        startMouse = input.Position
+    end
+end)
+
+TopBar.InputChanged:Connect(function(input)
+    if drag and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - startMouse
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+TopBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
+end)
+
+--// Glitch Effect Engine
+spawn(function()
+    while ScreenGui.Parent do
+        wait(0.7)
+        if math.random() > 0.85 then
+            BottomText.Text = ">> PROTECTION: " .. string.rep("*", math.random(8, 20)) .. " | STATUS: " .. string.upper(string.char(math.random(65, 90)) .. math.random(1000, 9999))
+            wait(0.1)
+            BottomText.Text = ">> PROTECTION: OBFUSCATED | STATUS: ENCRYPTED <<"
+        end
+    end
+end)
+
+print("\n[λ] CONGLOMERATE PROTOCOL ACTIVE")
+print("[λ] AWAITING OPERATOR INPUT...\n")
