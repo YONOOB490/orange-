@@ -1,415 +1,283 @@
---============== Fierce Executor v1.5.4 (Part 1/2 - Core) ===============
--- คำเตือน: ใช้เพื่อการศึกษาเท่านั้น การใช้งานอาจฝ่าฝืน ToS ของ Roblox
--- ผู้เขียนไม่รับประกันความปลอดภัย
--- พาร์ท 1: Core + Player Controls (Noclip Removed)
---==========================================================================
+--==============
+-- Fierce Executor v1.6 - Part 1/3: Core Foundation
+-- ส่วนที่ 1: พื้นฐานระบบ UI, Tweening, Config, Utilities
+-- ระบบที่ Part 2 และ Part 3 จะเรียกใช้
+-- ข้อควรระวัง: ใช้เพื่อการศึกษาเท่านั้น
+--==============
 
-local Players = game:GetService("Players")
+-- บริการหลักของ Roblox ที่จำเป็น
+local Players = game:GetService("Players") -- ดึงบริการ Players เพื่อจัดการผู้เล่น
+local TweenService = game:GetService("TweenService") -- บริการสำหรับ Animation แบบ smooth
+local UserInputService = game:GetService("UserInputService") -- รับ Input จากผู้ใช้ (Mouse/Touch)
+local HttpService = game:GetService("HttpService") -- สำหรับ JSON encode/decode เก็บ Config
+local RunService = game:GetService("RunService") -- สำหรับการทำงานแบบ real-time
+
+-- ดึง LocalPlayer (ผู้เล่นคนนี้) และ PlayerGui (ที่เก็บ UI)
 local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
+local PlayerGui = Player:WaitForChild("PlayerGui") -- WaitForChild ป้องกัน error ถ้ายังไม่โหลดเสร็จ
 
+-- สร้าง ScreenGui หลัก (Container ของทั้งหมด)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FierceExecutor"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = PlayerGui
+ScreenGui.Name = "FierceExecutor" -- ชื่อที่ใช้ระบุใน game.CoreGui
+ScreenGui.ResetOnSpawn = false -- สำคัญ! ไม่ให้ UI หายตอน respawn
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- ควบคุม layering ของ UI
+ScreenGui.Parent = PlayerGui -- แนบเข้ากับ PlayerGui ของผู้เล่น
 
--- Colors & Themes
-local DarkBase = Color3.fromRGB(30, 10, 0)
-local MainColor = Color3.fromRGB(255, 90, 20)
-local DarkColor = Color3.fromRGB(200, 50, 0)
-local AccentColor = Color3.fromRGB(255, 140, 50)
-local Transparent = 0.12
+-- ========== ธีมสีและการตั้งค่าหลัก ==========
+-- สีส้มดุดันสไตล์ Fierce
+local DarkBase = Color3.fromRGB(30, 10, 0) -- สีพื้นหลังเข้ม
+local MainColor = Color3.fromRGB(255, 90, 20) -- สีหลักสดใส
+local DarkColor = Color3.fromRGB(200, 50, 0) -- สีเข้มสำหรับปุ่ม
+local AccentColor = Color3.fromRGB(255, 140, 50) -- สี Accent สำหรับ highlight
+local Transparent = 0.12 -- ค่าความโปร่งใสเริ่มต้น
 
--- Tween Configs
-local TweenInfoSmooth = TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-local TweenInfoBounce = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+-- การตั้งค่า Tween (Animation)
+local TweenInfoSmooth = TweenInfo.new(
+    0.35, -- เวลา 0.35 วินาที
+    Enum.EasingStyle.Sine, -- ลักษณะการเคลื่อนที่แบบ Sine (นุ่มนวล)
+    Enum.EasingDirection.Out -- เริ่มเร็ว ช้าลงตอนท้าย
+)
 
--- GUI Sizes
-local NormalSize = UDim2.new(0, 600, 0, 480)
-local LargeSize = UDim2.new(0, 900, 0, 650)
-local NormalPos = UDim2.new(0.5, -300, 0.5, -240)
-local LargePos = UDim2.new(0.5, -450, 0.5, -325)
+-- ขนาด GUI สำหรับปุ่ม Maximize
+local NormalSize = UDim2.new(0, 600, 0, 480) -- ขนาดปกติ
+local LargeSize = UDim2.new(0, 900, 0, 650) -- ขยายใหญ่
+local NormalPos = UDim2.new(0.5, -300, 0.5, -240) -- Position ตอนปกติ
+local LargePos = UDim2.new(0.5, -450, 0.5, -325) -- Position ตอนขยาย
 
--- Main Frame
+-- ========== Main Frame (กรอบหลัก) ==========
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = NormalSize
-MainFrame.Position = NormalPos
-MainFrame.BackgroundColor3 = DarkBase
-MainFrame.BackgroundTransparency = Transparent
-MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = true
-MainFrame.Visible = true
-MainFrame.Parent = ScreenGui
+MainFrame.Name = "MainFrame" -- ชื่อสำหรับ debug
+MainFrame.Size = NormalSize -- ใช้ขนาดปกติเริ่มต้น
+MainFrame.Position = NormalPos -- ตรงกลางจอ
+MainFrame.BackgroundColor3 = DarkBase -- สีพื้นหลัง
+MainFrame.BackgroundTransparency = Transparent -- ความโปร่งใส
+MainFrame.BorderSizePixel = 0 -- ไม่มีขอบ
+MainFrame.ClipsDescendants = true -- ตัดส่วนเกิน (สำคัญสำหรับ animation)
+MainFrame.Visible = true -- แสดงผล
+MainFrame.Parent = ScreenGui -- แนบเข้า ScreenGui
 
+-- เพิ่ม Gradient ให้พื้นหลังสวยงาม
 local MainGradient = Instance.new("UIGradient")
-MainGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, DarkBase), ColorSequenceKeypoint.new(1, MainColor)})
-MainGradient.Rotation = 30
+MainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, DarkBase), -- เริ่มต้นด้วยสี DarkBase
+    ColorSequenceKeypoint.new(1, MainColor) -- จบด้วยสี MainColor
+})
+MainGradient.Rotation = 30 -- เอียง 30 องศา
 MainGradient.Parent = MainFrame
 
+-- มุมโค้งมน
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.CornerRadius = UDim.new(0, 14) -- โค้ง 14px
 MainCorner.Parent = MainFrame
 
+-- Glow Effect รอบๆ
 local MainGlow = Instance.new("UIStroke")
 MainGlow.Transparency = 0.6
-MainGlow.Color = AccentColor
-MainGlow.Thickness = 2
+MainGlow.Color = AccentColor -- สี Accent
+MainGlow.Thickness = 2 -- ความหนา 2px
 MainGlow.Parent = MainFrame
 
--- Notification System
-local NotifY = 20
-local function ShowNotif(text, duration)
-    duration = duration or 3
+-- ========== Notification System (ระบบแจ้งเตือน) ==========
+-- ใช้ queue แทน global variable ป้องกัน overlap
+local NotificationQueue = {} -- Queue สำหรับ notification
+local NotifYPosition = 20 -- Y เริ่มต้น
+
+-- ฟังก์ชันแสดง Notification
+local function ShowNotification(text, duration)
+    duration = duration or 3 -- ค่าเริ่มต้น 3 วินาที
+    
+    -- สร้าง Frame สำหรับ notification
     local notif = Instance.new("TextLabel")
-    notif.Size = UDim2.new(0, 300, 0, 50)
-    notif.Position = UDim2.new(1, 320, 0, NotifY)
-    notif.BackgroundColor3 = DarkBase
+    notif.Name = "Notification" -- ชื่อสำหรับ debug
+    notif.Size = UDim2.new(0, 300, 0, 50) -- ขนาด
+    notif.Position = UDim2.new(1, 320, 0, NotifYPosition) -- เริ่มจากขวานอกจอ
+    notif.BackgroundColor3 = DarkBase -- สีพื้นหลัง
     notif.BackgroundTransparency = 0.2
     notif.BorderSizePixel = 0
-    notif.Text = " " .. text
-    notif.TextColor3 = AccentColor
+    notif.Text = " " .. text -- เว้นวรรคซ้ายสำหรับไอคอน
+    notif.TextColor3 = AccentColor -- สีข้อความ
     notif.TextSize = 16
-    notif.Font = Enum.Font.GothamBold
-    notif.TextXAlignment = Enum.TextXAlignment.Left
-    notif.ZIndex = 1000
+    notif.Font = Enum.Font.GothamBold -- ตัวหนา
+    notif.TextXAlignment = Enum.TextXAlignment.Left -- ชิดซ้าย
+    notif.ZIndex = 1000 -- อยู่บนสุด
     notif.Parent = ScreenGui
     
+    -- มุมโค้ง
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = notif
     
+    -- Glow รอบๆ
     local stroke = Instance.new("UIStroke")
     stroke.Color = AccentColor
     stroke.Thickness = 2
     stroke.Transparency = 0.6
     stroke.Parent = notif
     
+    -- ไอคอนด้านซ้าย
     local icon = Instance.new("TextLabel")
     icon.Size = UDim2.new(0, 30, 0, 30)
-    icon.Position = UDim2.new(0, 10, 0.5, -15)
+    icon.Position = UDim2.new(0, 10, 0.5, -15) -- กึ่งกลางแนวตั้ง
     icon.BackgroundTransparency = 1
-    icon.Text = "💀"
+    icon.Text = "💀" -- ไอคอนหัวกะโหลก
     icon.TextScaled = true
     icon.TextColor3 = AccentColor
     icon.Font = Enum.Font.GothamBlack
     icon.Parent = notif
     
-    NotifY = NotifY + 60
-    TweenService:Create(notif, TweenInfoSmooth, {Position = UDim2.new(1, -270, 0, notif.Position.Y.Offset)}):Play()
+    -- เพิ่ม Y position สำหรับ notification ถัดไป
+    NotifYPosition = NotifYPosition + 60
     
+    -- Animation เข้า (เลื่อนจากขวา)
+    TweenService:Create(notif, TweenInfoSmooth, {
+        Position = UDim2.new(1, -270, 0, notif.Position.Y.Offset)
+    }):Play()
+    
+    -- ตั้งเวลาลบออก
     spawn(function()
-        wait(duration)
-        TweenService:Create(notif, TweenInfoSmooth, {Position = UDim2.new(1, 320, 0, notif.Position.Y.Offset)}):Play()
-        wait(0.4)
-        notif:Destroy()
-        NotifY = NotifY - 60
+        wait(duration) -- รอตาม duration
+        
+        -- Animation ออก (เลื่อนกลับออกไปขวา)
+        TweenService:Create(notif, TweenInfoSmooth, {
+            Position = UDim2.new(1, 320, 0, notif.Position.Y.Offset)
+        }):Play()
+        
+        wait(0.4) -- รอ animation เสร็จ
+        
+        notif:Destroy() -- ลบออกจาก memory
+        NotifYPosition = NotifYPosition - 60 -- ลด Y กลับ
     end)
+    
+    return notif -- Return สำหรับการควบคุมเพิ่มเติม
 end
 
--- Global Variables
-WalkSpeedValue = 50
-JumpPowerValue = 50
-ESPHighlightSettings = {Enabled = false}
-ESPNameSettings = {Enabled = false, ShowName = true, ShowDistance = true, ShowHealth = true, TextSize = 10, Range = 500}
-ESPConnection = nil
-ESPObjects = {}
+-- ========== Global Configuration (ตั้งค่าทั่วไป) ==========
+-- เก็บใน table เดียวป้องกัน global pollution
+local FierceConfig = {
+    WalkSpeed = 50,
+    JumpPower = 50,
+    ESP = {
+        NameEnabled = false,
+        HighlightEnabled = false,
+        Range = 500,
+        TextSize = 10
+    },
+    Visuals = {
+        FOV = 70,
+        Fullbright = false,
+        NoFog = false,
+        Crosshair = false
+    }
+}
 
--- Utility Functions
+-- ========== Utility Functions (ฟังก์ชันช่วยเหลือ) ==========
+-- ดึง Character อย่างปลอดภัย ป้องกัน nil
 local function GetCharacter()
     local char = Player.Character
-    if not char or not char.Parent then
-        char = Player.CharacterAdded:Wait()
+    if not char or not char.Parent then -- ถ้า nil หรือไม่ได้ attach กับ workspace
+        char = Player.CharacterAdded:Wait() -- รอจนกว่าจะ spawn
     end
     return char
 end
 
+-- ดึง Humanoid อย่างปลอดภัย
 local function GetHumanoid()
     local char = GetCharacter()
-    return char and char:FindFirstChildOfClass("Humanoid")
+    return char and char:FindFirstChildOfClass("Humanoid") -- Return nil ถ้าไม่เจอ
 end
 
-local function ApplyMovementMods()
-    local hum = GetHumanoid()
-    if hum then
-        hum.WalkSpeed = WalkSpeedValue
-        hum.JumpPower = JumpPowerValue
-        ShowNotif("✅ Movement mods applied", 2)
-    else
-        ShowNotif("❌ Humanoid not found", 2)
-    end
-end
-
-local function SaveConfig()
-    pcall(function()
-        local config = {ws = WalkSpeedValue, jp = JumpPowerValue}
-        if writefile then
-            writefile("fierce_config.json", HttpService:JSONEncode(config))
+-- บันทึก Config ลงไฟล์
+local function SaveConfiguration()
+    pcall(function() -- pcall ป้องกัน error ถ้า writefile ไม่มี (เช่นใน Studio)
+        if writefile then -- เช็คว่า executor รองรับ writefile ไหม
+            local configData = {
+                ws = FierceConfig.WalkSpeed,
+                jp = FierceConfig.JumpPower,
+                esp_range = FierceConfig.ESP.Range,
+                esp_textsize = FierceConfig.ESP.TextSize
+            }
+            writefile("fierce_config_v16.json", HttpService:JSONEncode(configData))
         end
     end)
 end
 
-local function LoadConfig()
+-- โหลด Config จากไฟล์
+local function LoadConfiguration()
     pcall(function()
-        if readfile and isfile and isfile("fierce_config.json") then
-            local data = readfile("fierce_config.json")
+        if readfile and isfile and isfile("fierce_config_v16.json") then -- เช็คฟังก์ชันครบ
+            local data = readfile("fierce_config_v16.json")
             local config = HttpService:JSONDecode(data)
-            WalkSpeedValue = config.ws or 50
-            JumpPowerValue = config.jp or 50
-            ShowNotif("✅ Config loaded", 2)
+            
+            -- ตรวจสอบค่าก่อน assign (ป้องกัน corrupted data)
+            FierceConfig.WalkSpeed = (type(config.ws) == "number" and config.ws >= 0 and config.ws <= 500) and config.ws or 50
+            FierceConfig.JumpPower = (type(config.jp) == "number" and config.jp >= 0 and config.jp <= 500) and config.jp or 50
+            FierceConfig.ESP.Range = (type(config.esp_range) == "number" and config.esp_range > 0) and config.esp_range or 500
+            FierceConfig.ESP.TextSize = (type(config.esp_textsize) == "number" and config.esp_textsize > 0) and config.esp_textsize or 10
+            
+            ShowNotification("✅ Configuration loaded", 2)
         end
     end)
 end
 
-LoadConfig()
+-- เรียก Load ทันทีตอนโหลด script
+LoadConfiguration()
 
--- ========== NOCLIP REMOVED ==========
-
--- ========== ESP SYSTEMS ==========
-local function CreateESPName(targetPlayer)
-    if ESPObjects[targetPlayer] then return end
-    
-    local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 120, 0, 35)
-    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = ScreenGui
-    
-    local bg = Instance.new("Frame")
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    bg.BackgroundTransparency = 0.6
-    bg.BorderSizePixel = 0
-    bg.Parent = billboard
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
-    corner.Parent = bg
-    
-    -- Name Label
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, -10, 0, 12)
-    nameLabel.Position = UDim2.new(0, 5, 0, 2)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = targetPlayer.Name
-    nameLabel.TextColor3 = AccentColor
-    nameLabel.TextSize = ESPNameSettings.TextSize
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.Parent = bg
-    
-    -- Distance Label
-    local distLabel = Instance.new("TextLabel")
-    distLabel.Size = UDim2.new(1, -10, 0, 10)
-    distLabel.Position = UDim2.new(0, 5, 0, 14)
-    distLabel.BackgroundTransparency = 1
-    distLabel.Text = ""
-    distLabel.TextColor3 = Color3.new(0.9,0.9,0.9)
-    distLabel.TextSize = ESPNameSettings.TextSize - 1
-    distLabel.Font = Enum.Font.Gotham
-    distLabel.Parent = bg
-    
-    -- Health Label
-    local healthLabel = Instance.new("TextLabel")
-    healthLabel.Size = UDim2.new(1, -10, 0, 10)
-    healthLabel.Position = UDim2.new(0, 5, 0, 23)
-    healthLabel.BackgroundTransparency = 1
-    healthLabel.Text = ""
-    healthLabel.TextColor3 = Color3.new(0,1,0)
-    healthLabel.TextSize = ESPNameSettings.TextSize - 1
-    healthLabel.Font = Enum.Font.Gotham
-    healthLabel.Parent = bg
-    
-    ESPObjects[targetPlayer] = {billboard = billboard}
-    
-    -- Update Loop
-    spawn(function()
-        while ESPNameSettings.Enabled and Players:FindFirstChild(targetPlayer.Name) do
-            local char = targetPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local myChar = GetCharacter()
-                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                    local distance = (char.HumanoidRootPart.Position - myChar.HumanoidRootPart.Position).Magnitude
-                    if distance <= ESPNameSettings.Range then
-                        billboard.Enabled = true
-                        billboard.Adornee = char.HumanoidRootPart
-                        distLabel.Text = string.format("%.0fm", distance)
-                        local humanoid = char:FindFirstChildOfClass("Humanoid")
-                        if humanoid then
-                            healthLabel.Text = string.format("%d/%d", humanoid.Health, humanoid.MaxHealth)
-                        end
-                    else
-                        billboard.Enabled = false
-                    end
-                end
-            else
-                billboard.Enabled = false
-            end
-            wait(0.15)
-        end
-        billboard:Destroy()
-        ESPObjects[targetPlayer] = nil
-    end)
-end
-
-local function ToggleESPName()
-    ESPNameSettings.Enabled = not ESPNameSettings.Enabled
-    
-    if ESPNameSettings.Enabled then
-        -- Create for existing players
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= Player then
-                CreateESPName(plr)
-            end
-        end
-        
-        -- Listen for new players
-        ESPConnection = Players.PlayerAdded:Connect(function(newPlayer)
-            if ESPNameSettings.Enabled then
-                wait(1)
-                CreateESPName(newPlayer)
-            end
-        end)
-        
-        ShowNotif("✅ ESP Name enabled", 2)
-    else
-        -- Disconnect listener
-        if ESPConnection then
-            ESPConnection:Disconnect()
-            ESPConnection = nil
-        end
-        
-        -- Destroy all ESP objects
-        for _, obj in pairs(ESPObjects) do
-            if obj.billboard then
-                obj.billboard:Destroy()
-            end
-        end
-        ESPObjects = {}
-        ShowNotif("❌ ESP Name disabled", 2)
-    end
-end
-
-local function ToggleESPHighlight()
-    ESPHighlightSettings.Enabled = not ESPHighlightSettings.Enabled
-    local highlightObjects = {}
-    
-    if ESPHighlightSettings.Enabled then
-        -- Create for existing players
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= Player then
-                local highlight = Instance.new("Highlight")
-                highlight.FillColor = AccentColor
-                highlight.OutlineColor = Color3.new(1,1,1)
-                highlight.OutlineTransparency = 0.5
-                highlight.FillTransparency = 0.7
-                highlight.Parent = ScreenGui
-                highlightObjects[plr] = highlight
-                
-                spawn(function()
-                    while ESPHighlightSettings.Enabled and Players:FindFirstChild(plr.Name) do
-                        local char = plr.Character
-                        if char then
-                            highlight.Adornee = char
-                        end
-                        wait(1)
-                    end
-                    highlight:Destroy()
-                    highlightObjects[plr] = nil
-                end)
-            end
-        end
-        
-        -- Listen for new players
-        ESPConnection = Players.PlayerAdded:Connect(function(newPlayer)
-            if ESPHighlightSettings.Enabled and newPlayer ~= Player then
-                wait(1)
-                local highlight = Instance.new("Highlight")
-                highlight.FillColor = AccentColor
-                highlight.OutlineColor = Color3.new(1,1,1)
-                highlight.OutlineTransparency = 0.5
-                highlight.FillTransparency = 0.7
-                highlight.Parent = ScreenGui
-                
-                spawn(function()
-                    while ESPHighlightSettings.Enabled and Players:FindFirstChild(newPlayer.Name) do
-                        local char = newPlayer.Character
-                        if char then
-                            highlight.Adornee = char
-                        end
-                        wait(1)
-                    end
-                    highlight:Destroy()
-                end)
-            end
-        end)
-        
-        ShowNotif("✅ ESP Highlight enabled", 2)
-    else
-        -- Disconnect listener
-        if ESPConnection then
-            ESPConnection:Disconnect()
-            ESPConnection = nil
-        end
-        
-        -- Destroy all highlights
-        for _, obj in pairs(highlightObjects) do
-            if obj then
-                obj:Destroy()
-            end
-        end
-        ShowNotif("❌ ESP Highlight disabled", 2)
-    end
-end
-
--- Header
+-- ========== Header (ส่วนหัวของ GUI) ==========
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 60)
-Header.BackgroundColor3 = Color3.new(1,1,1)
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 60) -- ความสูง 60px, กว้างเต็ม
+Header.BackgroundColor3 = Color3.new(1,1,1) -- สีขาวสำหรับ gradient
 Header.BackgroundTransparency = 0.2
 Header.BorderSizePixel = 0
-Header.Parent = MainFrame
+Header.Parent = MainFrame -- แนบเข้า MainFrame
 
+-- Gradient สำหรับ header
 local HeaderGradient = Instance.new("UIGradient")
-HeaderGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, DarkColor), ColorSequenceKeypoint.new(1, DarkBase)})
-HeaderGradient.Rotation = -30
+HeaderGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, DarkColor), -- เริ่มด้วย DarkColor
+    ColorSequenceKeypoint.new(1, DarkBase) -- จบด้วย DarkBase
+})
+HeaderGradient.Rotation = -30 -- เอียงลบ 30 องศา
 HeaderGradient.Parent = Header
 
+-- มุมโค้ง
 local HeaderCorner = Instance.new("UICorner")
 HeaderCorner.CornerRadius = UDim.new(0, 14)
 HeaderCorner.Parent = Header
 
+-- ชื่อ Script
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, -200, 1, 0)
-TitleLabel.Position = UDim2.new(0, 70, 0, 0)
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Size = UDim2.new(1, -200, 1, 0) -- เว้นที่สำหรับปุ่มด้านขวา
+TitleLabel.Position = UDim2.new(0, 70, 0, 0) -- ชิดซ้าย 70px (เว้นที่โลโก้)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "Fierce Script"
-TitleLabel.TextColor3 = Color3.new(1,1,1)
+TitleLabel.Text = ScriptName
+TitleLabel.TextColor3 = Color3.new(1,1,1) -- สีขาว
 TitleLabel.TextSize = 26
-TitleLabel.Font = Enum.Font.GothamBlack
+TitleLabel.Font = Enum.Font.GothamBlack -- ตัวหนา
 TitleLabel.Parent = Header
 
+-- โลโก้ไอคอน
 local LogoLabel = Instance.new("TextLabel")
+LogoLabel.Name = "LogoLabel"
 LogoLabel.Size = UDim2.new(0, 40, 0, 40)
-LogoLabel.Position = UDim2.new(0, 15, 0.5, -20)
+LogoLabel.Position = UDim2.new(0, 15, 0.5, -20) -- กึ่งกลางแนวตั้ง
 LogoLabel.BackgroundTransparency = 1
-LogoLabel.Text = "💀"
+LogoLabel.Text = LogoEmoji
 LogoLabel.TextScaled = true
-LogoLabel.TextColor3 = AccentColor
+LogoLabel.TextColor3 = AccentColor -- สี Accent
 LogoLabel.Font = Enum.Font.GothamBlack
 LogoLabel.Parent = Header
 
--- Control Buttons
+-- ========== ปุ่มควบคุม (Maximize/Minimize/Close) ==========
+-- ปุ่มขยาย
 local MaximizeButton = Instance.new("TextButton")
+MaximizeButton.Name = "MaximizeButton"
 MaximizeButton.Size = UDim2.new(0, 32, 0, 32)
-MaximizeButton.Position = UDim2.new(1, -142, 0.5, -16)
+MaximizeButton.Position = UDim2.new(1, -142, 0.5, -16) -- จากขวา 142px
 MaximizeButton.BackgroundColor3 = DarkColor
 MaximizeButton.BackgroundTransparency = 0.6
-MaximizeButton.Text = "□"
+MaximizeButton.Text = "□" -- สัญลักษณ์ขยาย
 MaximizeButton.TextColor3 = Color3.new(1,1,1)
 MaximizeButton.TextSize = 24
 MaximizeButton.Font = Enum.Font.GothamBold
@@ -419,12 +287,14 @@ local MaxCorner = Instance.new("UICorner")
 MaxCorner.CornerRadius = UDim.new(0, 8)
 MaxCorner.Parent = MaximizeButton
 
+-- ปุ่มย่อ
 local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Size = UDim2.new(0, 32, 0, 32)
-MinimizeButton.Position = UDim2.new(1, -100, 0.5, -16)
+MinimizeButton.Position = UDim2.new(1, -100, 0.5, -16) -- จากขวา 100px
 MinimizeButton.BackgroundColor3 = DarkColor
 MinimizeButton.BackgroundTransparency = 0.6
-MinimizeButton.Text = "–"
+MinimizeButton.Text = "–" -- สัญลักษณ์ย่อ
 MinimizeButton.TextColor3 = Color3.new(1,1,1)
 MinimizeButton.TextSize = 26
 MinimizeButton.Font = Enum.Font.GothamBold
@@ -434,12 +304,14 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 8)
 MinCorner.Parent = MinimizeButton
 
+-- ปุ่มปิด
 local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
 CloseButton.Size = UDim2.new(0, 32, 0, 32)
-CloseButton.Position = UDim2.new(1, -58, 0.5, -16)
+CloseButton.Position = UDim2.new(1, -58, 0.5, -16) -- จากขวา 58px
 CloseButton.BackgroundColor3 = DarkColor
 CloseButton.BackgroundTransparency = 0.6
-CloseButton.Text = "×"
+CloseButton.Text = "×" -- สัญลักษณ์ปิด
 CloseButton.TextColor3 = Color3.new(1,1,1)
 CloseButton.TextSize = 26
 CloseButton.Font = Enum.Font.GothamBold
@@ -449,121 +321,615 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseButton
 
--- Sidebar
+-- ========== Sidebar (แถบด้านซ้าย) ==========
 local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 85, 1, -60)
-Sidebar.Position = UDim2.new(0, 0, 0, 60)
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 85, 1, -60) -- กว้าง 85px, สูงเต็มลบ header
+Sidebar.Position = UDim2.new(0, 0, 0, 60) -- จากบน 60px (ข้างล่าง header)
 Sidebar.BackgroundTransparency = 0.3
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = MainFrame
 
+-- Gradient สำหรับ sidebar
 local SidebarGradient = Instance.new("UIGradient")
-SidebarGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, DarkColor), ColorSequenceKeypoint.new(1, DarkBase)})
-SidebarGradient.Rotation = 90
+SidebarGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, DarkColor),
+    ColorSequenceKeypoint.new(1, DarkBase)
+})
+SidebarGradient.Rotation = 90 -- แนวตั้ง
 SidebarGradient.Parent = Sidebar
 
--- Content Area
+-- ========== Content Area (พื้นที่แสดงเนื้อหา) ==========
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -85, 1, -60)
-Content.Position = UDim2.new(0, 85, 0, 60)
-Content.BackgroundTransparency = 1
-Content.ClipsDescendants = true
+Content.Name = "Content"
+Content.Size = UDim2.new(1, -85, 1, -60) -- เต็มจอลบ sidebar และ header
+Content.Position = UDim2.new(0, 85, 0, 60) -- จากซ้าย 85px, จากบน 60px
+Content.BackgroundTransparency = 1 -- โปร่งใส
+Content.ClipsDescendants = true -- ตัดส่วนเกิน
 Content.Parent = MainFrame
 
--- Tabs Setup
-local TabIcons = {"🗡️", "🔥", "👁️", "ℹ️"}
-local TabContents = {}
-local CurrentTab = 1
+-- ========== ระบบ Tab (ว่างเปล่าพร้อมรับ Part 2 และ 3) ==========
+local TabContents = {} -- เก็บ Frame ของแต่ละ tab
+local CurrentTab = 1 -- Tab ปัจจุบัน (เริ่มที่ 1)
 
-for i = 1, #TabIcons do
+-- สร้าง Frame ว่างเปล่าสำหรับแต่ละ tab (Part 2 และ 3 จะเพิ่มเนื้อหา)
+for i = 1, 2 do -- เริ่มด้วย 2 tabs (จะเพิ่มใน Part 3)
     local TabContent = Instance.new("Frame")
-    TabContent.Size = UDim2.new(1, 0, 1, 0)
+    TabContent.Name = "Tab" .. i .. "Content"
+    TabContent.Size = UDim2.new(1, 0, 1, 0) -- เต็มพื้นที่ content
     TabContent.Position = UDim2.new(0, 0, 0, 0)
-    TabContent.BackgroundTransparency = 1
-    TabContent.Visible = (i == 1)
+    TabContent.BackgroundTransparency = 1 -- โปร่งใส
+    TabContent.Visible = (i == 1) -- แสดงเฉพาะ tab แรก
     TabContent.Parent = Content
-    TabContents[i] = TabContent
+    TabContents[i] = TabContent -- เก็บไว้ใน array
 end
 
-local TabButtons = {}
-for i, icon in ipairs(TabIcons) do
+-- ========== ปุ่ม Tab ด้านซ้าย ==========
+local TabButtons = {} -- เก็บปุ่ม tab
+
+for i, icon in ipairs(TabIcons) do -- Loop ผ่าน TabIcons (มี 2 ตัวเริ่มต้น)
     local TabButton = Instance.new("TextButton")
-    TabButton.Size = UDim2.new(1, 0, 0, 55)
-    TabButton.Position = UDim2.new(0, 0, 0, (i-1)*65 + 20)
-    TabButton.BackgroundTransparency = 1
-    TabButton.Text = icon
+    TabButton.Name = "TabButton" .. i
+    TabButton.Size = UDim2.new(1, 0, 0, 55) -- กว้างเต็ม sidebar, สูง 55px
+    TabButton.Position = UDim2.new(0, 0, 0, (i-1)*65 + 20) -- ห่างกัน 65px, เริ่มจาก 20px
+    TabButton.BackgroundTransparency = 1 -- โปร่งใส
+    TabButton.Text = icon -- ไอคอนจาก TabIcons
     TabButton.TextScaled = false
-    TabButton.TextSize = 36
-    TabButton.TextColor3 = Color3.new(1,1,1)
+    TabButton.TextSize = 36 -- ขนาดไอคอน
+    TabButton.TextColor3 = Color3.new(1,1,1) -- สีขาว
     TabButton.Font = Enum.Font.GothamBlack
     TabButton.Parent = Sidebar
     
+    -- Glow effect เมื่อ hover
     local TabGlow = Instance.new("UIStroke")
-    TabGlow.Transparency = 0.9
+    TabGlow.Name = "TabGlow"
+    TabGlow.Transparency = 0.9 -- จางๆ
     TabGlow.Color = AccentColor
     TabGlow.Thickness = 2
     TabGlow.Parent = TabButton
     
-    TabButtons[i] = TabButton
+    TabButtons[i] = TabButton -- เก็บไว้ใน array
+    
+    -- เชื่อมตัวแปลไปยัง Part 2 และ 3
+    -- ปุ่ม tab จะถูกเชื่อม event ใน Part 3 เพราะต้องรอ ESP system โหลดก่อน
 end
 
--- Minimize Icon
+-- ========== Minimized Icon (ไอคอนตอนย่อ) ==========
 local MinimizedIcon = Instance.new("TextButton")
-MinimizedIcon.Size = UDim2.new(0, 50, 0, 50)
-MinimizedIcon.Position = UDim2.new(1, -60, 0, 10)
+MinimizedIcon.Name = "MinimizedIcon"
+MinimizedIcon.Size = UDim2.new(0, 50, 0, 50) -- ขนาด 50x50px
+MinimizedIcon.Position = UDim2.new(1, -60, 0, 10) -- บนขวาของจอ
 MinimizedIcon.BackgroundColor3 = DarkColor
 MinimizedIcon.BackgroundTransparency = 0.5
-MinimizedIcon.Text = "💀"
+MinimizedIcon.Text = LogoEmoji -- ใช้โลโก้เดียวกัน
 MinimizedIcon.TextScaled = true
 MinimizedIcon.TextColor3 = AccentColor
 MinimizedIcon.Font = Enum.Font.GothamBlack
-MinimizedIcon.Visible = false
+MinimizedIcon.Visible = false -- ซ่อนไว้ก่อน
 MinimizedIcon.Parent = ScreenGui
 
 local MinIconCorner = Instance.new("UICorner")
 MinIconCorner.CornerRadius = UDim.new(0, 10)
 MinIconCorner.Parent = MinimizedIcon
 
--- Global State
-isMinimized = false
-isLarge = false
-dragging = false
-dragInput = nil
-dragStart = nil
-startPos = nil
+-- ========== State Management (จัดการสถานะ) ==========
+local GUIState = {
+    isMinimized = false,
+    isLarge = false,
+    dragging = false,
+    dragInput = nil,
+    dragStart = nil,
+    startPos = nil
+}
 
--- Hover Effect Function (Enhanced)
-local function AddHover(btn)
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.4}):Play()
-        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = AccentColor}):Play()
+-- ========== Dragging System (ลากวาง GUI) ==========
+-- ใช้ InputBegan/Changed/Ended อย่างถูกต้องเพื่อป้องกัน memory leak
+Header.InputBegan:Connect(function(input)
+    -- เริ่มลากเมื่อกด Mouse หรือ Touch
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        GUIState.dragging = true
+        GUIState.dragStart = input.Position -- จุดเริ่มต้น
+        GUIState.startPos = MainFrame.Position -- Position ก่อนลาก
+    end
+end)
+
+Header.InputChanged:Connect(function(input)
+    -- อัพเดทตำแหน่งเมื่อขยับ Mouse หรือ Touch
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        GUIState.dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    -- อัพเดท Position ของ MainFrame ตามการลาก
+    if GUIState.dragging and input == GUIState.dragInput then
+        local delta = input.Position - GUIState.dragStart -- ระยะห่างจากจุดเริ่ม
+        MainFrame.Position = UDim2.new(
+            GUIState.startPos.X.Scale, 
+            GUIState.startPos.X.Offset + delta.X, 
+            GUIState.startPos.Y.Scale, 
+            GUIState.startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+Header.InputEnded:Connect(function(input)
+    -- หยุดลากเมื่อปล่อย Mouse หรือ Touch
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        GUIState.dragging = false
+    end
+end)
+
+-- ========== Hover Effects (เอฟเฟคเมื่อชี้) ==========
+local function AddHoverEffect(button)
+    -- เมื่อเอาเมาส์เข้า
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfoSmooth, {
+            BackgroundTransparency = 0.4, -- ชัดขึ้น
+            TextColor3 = AccentColor -- เปลี่ยนสีข้อความ
+        }):Play()
     end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.6}):Play()
-        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = Color3.new(1,1,1)}):Play()
+    
+    -- เมื่อเอาเมาส์ออก
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfoSmooth, {
+            BackgroundTransparency = 0.6, -- จางลง
+            TextColor3 = Color3.new(1,1,1) -- กลับเป็นขาว
+        }):Play()
     end)
 end
 
-AddHover(MaximizeButton)
-AddHover(MinimizeButton)
-AddHover(CloseButton)
+-- เพิ่ม hover effect ให้ปุ่มควบคุม
+AddHoverEffect(MaximizeButton)
+AddHoverEffect(MinimizeButton)
+AddHoverEffect(CloseButton)
 
--- ========== BEGIN TAB 1: PLAYER CONTROLS ==========
-local Tab1 = TabContents[1]
+-- ========== Size & Minimize Logic (ควบคุมขนาด) ==========
+MaximizeButton.MouseButton1Click:Connect(function()
+    if GUIState.isMinimized then return end -- ถ้าย่ออยู่ไม่ให้ขยาย
+    
+    GUIState.isLarge = not GUIState.isLarge -- สลับสถานะ
+    
+    local targetSize = GUIState.isLarge and LargeSize or NormalSize
+    local targetPos = GUIState.isLarge and LargePos or NormalPos
+    
+    -- Animate ขนาดและตำแหน่งพร้อมกัน (smooth)
+    TweenService:Create(MainFrame, TweenInfoSmooth, {
+        Size = targetSize,
+        Position = targetPos
+    }):Play()
+end)
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    if GUIState.isMinimized then return end
+    
+    GUIState.isMinimized = true
+    
+    -- Animation หดเล็กลง
+    TweenService:Create(MainFrame, TweenInfoSmooth, {
+        Size = UDim2.new(0, 0, 0, 0)
+    }):Play()
+    
+    -- หลัง animation เสร็จ ซ่อน frame และแสดงไอคอน
+    task.delay(0.35, function()
+        MainFrame.Visible = false
+        MinimizedIcon.Visible = true
+        MinimizedIcon.Size = UDim2.new(0, 0, 0, 0) -- เริ่มจากขนาด 0
+        
+        -- Animate ไอคอนโผล่ขึ้นมา (bounce effect)
+        TweenService:Create(MinimizedIcon, TweenInfoBounce, {
+            Size = UDim2.new(0, 50, 0, 50)
+        }):Play()
+    end)
+end)
+
+MinimizedIcon.MouseButton1Click:Connect(function()
+    if not GUIState.isMinimized then return end
+    
+    GUIState.isMinimized = false
+    
+    -- Animation ไอคอนหายไป
+    TweenService:Create(MinimizedIcon, TweenInfoSmooth, {
+        Size = UDim2.new(0, 0, 0, 0)
+    }):Play()
+    
+    task.delay(0.35, function()
+        MinimizedIcon.Visible = false
+        MainFrame.Visible = true
+        
+        local targetSize = GUIState.isLarge and LargeSize or NormalSize
+        local targetPos = GUIState.isLarge and LargePos or NormalPos
+        
+        -- Animate กลับมา
+        TweenService:Create(MainFrame, TweenInfoBounce, {
+            Size = targetSize,
+            Position = targetPos
+        }):Play()
+    end)
+end)
+
+CloseButton.Mou
+--==============
+-- Fierce Executor v1.6 - Part 2/3: ESP Engine
+-- ส่วนที่ 2: ระบบ ESP สมบูรณ์แบบ (Name Tags + Highlights)
+-- ออกแบบให้เป็น standalone module ที่สามารถใช้งานแยกได้
+-- ป้องกัน memory leak และ optimize performance สูงสุด
+--==============
+
+-- ดึง FierceCore จาก Part 1
+local Core = _G.FierceCore
+if not Core then
+    error("FierceExecutor Error: Part 1 must be loaded before Part 2!")
+    return
+end
+
+-- ดึง services จาก Core
+local Players = Core.Players
+local Player = Core.Player
+local TweenService = Core.TweenService
+local RunService = Core.RunService
+
+-- ========== ESP Controller (ตัวควบคุม ESP ทั้งหมด) ==========
+local ESPController = {
+    -- State
+    isEnabled = {
+        Name = false,
+        Highlight = false
+    },
+    
+    -- เก็บ Objects ที่สร้างขึ้นเพื่อ cleanup
+    Objects = {
+        NameTags = {}, -- เก็บ BillboardGui ของแต่ละ player
+        Highlights = {} -- เก็บ Highlight ของแต่ละ player
+    },
+    
+    -- Connections สำหรับ cleanup
+    Connections = {
+        PlayerAdded = nil,
+        PlayerRemoving = nil,
+        RenderStepped = nil
+    },
+    
+    -- Settings
+    Settings = {
+        Range = Core.Config.ESP.Range, -- ระยะมองเห็น
+        TextSize = Core.Config.ESP.TextSize, -- ขนาดข้อความ
+        UpdateRate = 0.15 -- อัพเดททุก 0.15 วินาที (ประมาณ 6.67 FPS)
+    }
+}
+
+-- ========== Name Tag ESP (ชื่อและข้อมูลผู้เล่น) ==========
+local function CreateNameTag(targetPlayer)
+    -- ป้องกันสร้างซ้ำ
+    if ESPController.Objects.NameTags[targetPlayer] then
+        return
+    end
+    
+    -- สร้าง BillboardGui (UI ติดตามตัวละคร)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "FierceESPTag_" .. targetPlayer.Name -- ชื่อ unique
+    billboard.Size = UDim2.new(0, 120, 0, 35) -- ขนาด
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0) -- ยกขึ้น 2.5 studs
+    billboard.AlwaysOnTop = true -- เห็นเสมอแม้มีสิ่งกีดขวาง
+    billboard.MaxDistance = ESPController.Settings.Range -- ไม่แสดงเกินระยะนี้
+    billboard.Parent = Core.ScreenGui
+    
+    -- Background ของ tag
+    local bg = Instance.new("Frame")
+    bg.Name = "Background"
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    bg.BackgroundTransparency = 0.6
+    bg.BorderSizePixel = 0
+    bg.Parent = billboard
+    
+    -- มุมโค้ง
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = bg
+    
+    -- Name Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, -10, 0, 12)
+    nameLabel.Position = UDim2.new(0, 5, 0, 2)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = targetPlayer.Name
+    nameLabel.TextColor3 = Core.Colors.AccentColor -- สี Accent
+    nameLabel.TextSize = ESPController.Settings.TextSize
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = bg
+    
+    -- Distance Label
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Name = "DistanceLabel"
+    distLabel.Size = UDim2.new(1, -10, 0, 10)
+    distLabel.Position = UDim2.new(0, 5, 0, 14)
+    distLabel.BackgroundTransparency = 1
+    distLabel.Text = "" -- จะอัพเดทอัตโนมัติ
+    distLabel.TextColor3 = Color3.new(0.9,0.9,0.9) -- สีเทาอ่อน
+    distLabel.TextSize = ESPController.Settings.TextSize - 1
+    distLabel.Font = Enum.Font.Gotham
+    distLabel.TextXAlignment = Enum.TextXAlignment.Left
+    distLabel.Parent = bg
+    
+    -- Health Label
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Name = "HealthLabel"
+    healthLabel.Size = UDim2.new(1, -10, 0, 10)
+    healthLabel.Position = UDim2.new(0, 5, 0, 23)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Text = "" -- จะอัพเดทอัตโนมัติ
+    healthLabel.TextColor3 = Color3.new(0,1,0) -- สีเขียว
+    healthLabel.TextSize = ESPController.Settings.TextSize - 1
+    healthLabel.Font = Enum.Font.Gotham
+    healthLabel.TextXAlignment = Enum.TextXAlignment.Left
+    healthLabel.Parent = bg
+    
+    -- เก็บ reference
+    ESPController.Objects.NameTags[targetPlayer] = {
+        billboard = billboard,
+        nameLabel = nameLabel,
+        distLabel = distLabel,
+        healthLabel = healthLabel
+    }
+    
+    -- Update Loop (ทำงานใน spawn แยก thread)
+    spawn(function()
+        local myCharacter, targetCharacter
+        local myHumanoidRootPart, targetHumanoidRootPart
+        local targetHumanoid
+        
+        while ESPController.isEnabled.Name and Players:FindFirstChild(targetPlayer.Name) do
+            -- pcall ป้องกันทุก error ที่อาจเกิด
+            local success = pcall(function()
+                -- ดึง Character ของเรา
+                myCharacter = Core.GetCharacter()
+                targetCharacter = targetPlayer.Character
+                
+                if myCharacter and targetCharacter then
+                    myHumanoidRootPart = myCharacter:FindFirstChild("HumanoidRootPart")
+                    targetHumanoidRootPart = targetCharacter:FindFirstChild("HumanoidRootPart")
+                    targetHumanoid = targetCharacter:FindFirstChildOfClass("Humanoid")
+                    
+                    if myHumanoidRootPart and targetHumanoidRootPart then
+                        -- คำนวณระยะห่าง
+                        local distance = (targetHumanoidRootPart.Position - myHumanoidRootPart.Position).Magnitude
+                        
+                        if distance <= ESPController.Settings.Range then
+                            -- อัพเดทข้อมูล
+                            billboard.Enabled = true
+                            billboard.Adornee = targetHumanoidRootPart -- ติดตามตำแหน่ง
+                            distLabel.Text = string.format("%.0fm", distance) -- แสดงระยะ
+                            
+                            if targetHumanoid then
+                                healthLabel.Text = string.format("%d/%d", targetHumanoid.Health, targetHumanoid.MaxHealth)
+                            end
+                        else
+                            billboard.Enabled = false -- เกินระยะ ซ่อน
+                        end
+                    else
+                        billboard.Enabled = false -- ไม่เจอ HumanoidRootPart
+                    end
+                else
+                    billboard.Enabled = false -- ไม่เจอ Character
+                end
+            end)
+            
+            if not success then
+                -- ถ้า error รอและลองใหม่
+                wait(ESPController.Settings.UpdateRate)
+            end
+            
+            wait(ESPController.Settings.UpdateRate) -- รอตาม update rate
+        end
+        
+        -- Cleanup เมื่อปิด ESP หรือ player ออก
+        if ESPController.Objects.NameTags[targetPlayer] then
+            billboard:Destroy() -- ลบ UI
+            ESPController.Objects.NameTags[targetPlayer] = nil -- ลบ reference
+        end
+    end)
+end
+
+-- ========== Highlight ESP (Highlight ตัวละคร) ==========
+local function CreateHighlight(targetPlayer)
+    -- ป้องกันสร้างซ้ำ
+    if ESPController.Objects.Highlights[targetPlayer] then
+        return
+    end
+    
+    -- สร้าง Highlight (Roblox native effect)
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "FierceESPHighlight_" .. targetPlayer.Name
+    highlight.FillColor = Core.Colors.AccentColor
+    highlight.OutlineColor = Color3.new(1,1,1) -- ขาว
+    highlight.OutlineTransparency = 0.5
+    highlight.FillTransparency = 0.7 -- โปร่งใส 70%
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- เห็นเสมอ
+    highlight.Parent = Core.ScreenGui
+    
+    ESPController.Objects.Highlights[targetPlayer] = highlight
+    
+    -- Update Loop
+    spawn(function()
+        local targetCharacter
+        
+        while ESPController.isEnabled.Highlight and Players:FindFirstChild(targetPlayer.Name) do
+            pcall(function()
+                targetCharacter = targetPlayer.Character
+                
+                if targetCharacter then
+                    highlight.Adornee = targetCharacter -- ติดตามตัวละคร
+                    highlight.Enabled = true
+                else
+                    highlight.Enabled = false -- ซ่อนเมื่อไม่มี character
+                end
+            end)
+            
+            wait(1) -- อัพเดททุก 1 วินาที (Highlight ไม่จำเป็นบ่อย)
+        end
+        
+        -- Cleanup
+        if ESPController.Objects.Highlights[targetPlayer] then
+            highlight:Destroy()
+            ESPController.Objects.Highlights[targetPlayer] = nil
+        end
+    end)
+end
+
+-- ========== ESP Control Functions (ควบคุม On/Off) ==========
+-- เปิด/ปิด Name Tag ESP
+function ESPController.ToggleNameESP()
+    ESPController.isEnabled.Name = not ESPController.isEnabled.Name -- สลับสถานะ
+    
+    if ESPController.isEnabled.Name then
+        -- สร้างสำหรับ players ที่อยู่แล้ว
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= Player then -- ไม่สร้างให้ตัวเอง
+                CreateNameTag(plr)
+            end
+        end
+        
+        -- เชื่อม event สำหรับ player ใหม่
+        ESPController.Connections.PlayerAdded = Players.PlayerAdded:Connect(function(newPlayer)
+            if ESPController.isEnabled.Name and newPlayer ~= Player then
+                wait(1) -- รอให้ character โหลด
+                CreateNameTag(newPlayer)
+            end
+        end)
+        
+        -- เชื่อม event เมื่อ player ออก (cleanup)
+        ESPController.Connections.PlayerRemoving = Players.PlayerRemoving:Connect(function(removingPlayer)
+            if ESPController.Objects.NameTags[removingPlayer] then
+                ESPController.Objects.NameTags[removingPlayer].billboard:Destroy()
+                ESPController.Objects.NameTags[removingPlayer] = nil
+            end
+        end)
+        
+        Core.ShowNotification("✅ ESP Name Tags enabled", 2)
+    else
+        -- Disconnect connections
+        if ESPController.Connections.PlayerAdded then
+            ESPController.Connections.PlayerAdded:Disconnect()
+            ESPController.Connections.PlayerAdded = nil
+        end
+        
+        if ESPController.Connections.PlayerRemoving then
+            ESPController.Connections.PlayerRemoving:Disconnect()
+            ESPController.Connections.PlayerRemoving = nil
+        end
+        
+        -- Destroy all name tags
+        for _, obj in pairs(ESPController.Objects.NameTags) do
+            obj.billboard:Destroy()
+        end
+        ESPController.Objects.NameTags = {}
+        
+        Core.ShowNotification("❌ ESP Name Tags disabled", 2)
+    end
+end
+
+-- เปิด/ปิด Highlight ESP
+function ESPController.ToggleHighlightESP()
+    ESPController.isEnabled.Highlight = not ESPController.isEnabled.Highlight
+    
+    if ESPController.isEnabled.Highlight then
+        -- สร้างสำหรับ players ที่อยู่แล้ว
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= Player then
+                CreateHighlight(plr)
+            end
+        end
+        
+        -- เชื่อม event สำหรับ player ใหม่
+        ESPController.Connections.PlayerAdded = Players.PlayerAdded:Connect(function(newPlayer)
+            if ESPController.isEnabled.Highlight and newPlayer ~= Player then
+                wait(1)
+                CreateHighlight(newPlayer)
+            end
+        end)
+        
+        -- เชื่อม event เมื่อ player ออก
+        ESPController.Connections.PlayerRemoving = Players.PlayerRemoving:Connect(function(removingPlayer)
+            if ESPController.Objects.Highlights[removingPlayer] then
+                ESPController.Objects.Highlights[removingPlayer]:Destroy()
+                ESPController.Objects.Highlights[removingPlayer] = nil
+            end
+        end)
+        
+        Core.ShowNotification("✅ ESP Highlight enabled", 2)
+    else
+        -- Disconnect
+        if ESPController.Connections.PlayerAdded then
+            ESPController.Connections.PlayerAdded:Disconnect()
+            ESPController.Connections.PlayerAdded = nil
+        end
+        
+        if ESPController.Connections.PlayerRemoving then
+            ESPController.Connections.PlayerRemoving:Disconnect()
+            ESPController.Connections.PlayerRemoving = nil
+        end
+        
+        -- Destroy all highlights
+        for _, obj in pairs(ESPController.Objects.Highlights) do
+            obj:Destroy()
+        end
+        ESPController.Objects.Highlights = {}
+        
+        Core.ShowNotification("❌ ESP Highlight disabled", 2)
+    end
+end
+
+-- ========== Export to Part 3 ==========
+Core.ESPController = ESPController -- ส่งต่อไป Part 3
+
+Core.ShowNotification("🔍 ESP Engine v1.6 Loaded", 3)
+
+print("Fierce Executor v1.6 - Part 2/3 ESP Engine Loaded Successfully")
+print("ESP System Ready: NameTags = " .. tostring(ESPController.isEnabled.Name) .. 
+      ", Highlights = " .. tostring(ESPController.isEnabled.Highlight))
+--==============
+-- Fierce Executor v1.6 - Part 3/3: Features Hub & Finalization
+-- ส่วนที่ 3: Script Hub, Player Visuals, Info Tab, และการเชื่อมทั้งหมดเข้าด้วยกัน
+-- นี่คือส่วนสุดท้ายที่จะเพิ่มฟีเจอร์ลงใน GUI
+--==============
+
+-- ดึง Core และ ESPController จาก Part 1 และ 2
+local Core = _G.FierceCore
+if not Core then
+    error("FierceExecutor Error: Part 1 must be loaded before Part 3!")
+    return
+end
+
+local ESPController = Core.ESPController
+if not ESPController then
+    error("FierceExecutor Error: Part 2 must be loaded before Part 3!")
+    return
+end
+
+-- เพิ่ม Tab Icons เพิ่มเติม (Part 1 มีแค่ 2, เพิ่มให้ครบ 4)
+Core.TabIcons = {"🗡️", "🔥", "👁️", "ℹ️"}
+
+-- ========== TAB 1: PLAYER CONTROLS (ควบคุมตัวละคร) ==========
+local Tab1 = Core.TabContents[1]
 
 local Tab1Title = Instance.new("TextLabel")
+Tab1Title.Name = "Tab1Title"
 Tab1Title.Size = UDim2.new(1, -20, 0, 40)
 Tab1Title.Position = UDim2.new(0, 10, 0, 10)
 Tab1Title.BackgroundTransparency = 1
 Tab1Title.Text = "PLAYER CONTROLS"
-Tab1Title.TextColor3 = AccentColor
+Tab1Title.TextColor3 = Core.Colors.AccentColor
 Tab1Title.TextSize = 20
 Tab1Title.Font = Enum.Font.GothamBold
 Tab1Title.TextXAlignment = Enum.TextXAlignment.Left
 Tab1Title.Parent = Tab1
 
--- Walk Speed
+-- Walk Speed Input
 local WSLabel = Instance.new("TextLabel")
+WSLabel.Name = "WSLabel"
 WSLabel.Size = UDim2.new(1, -40, 0, 25)
 WSLabel.Position = UDim2.new(0, 20, 0, 60)
 WSLabel.BackgroundTransparency = 1
@@ -575,11 +941,12 @@ WSLabel.TextXAlignment = Enum.TextXAlignment.Left
 WSLabel.Parent = Tab1
 
 local WSInput = Instance.new("TextBox")
+WSInput.Name = "WSInput"
 WSInput.Size = UDim2.new(0, 120, 0, 35)
 WSInput.Position = UDim2.new(0, 20, 0, 90)
-WSInput.BackgroundColor3 = DarkBase
+WSInput.BackgroundColor3 = Core.Colors.DarkBase
 WSInput.BackgroundTransparency = 0.4
-WSInput.Text = tostring(WalkSpeedValue)
+WSInput.Text = tostring(Core.Config.WalkSpeed)
 WSInput.TextColor3 = Color3.new(1,1,1)
 WSInput.TextSize = 16
 WSInput.Font = Enum.Font.GothamBold
@@ -590,25 +957,14 @@ WSInputCorner.CornerRadius = UDim.new(0, 6)
 WSInputCorner.Parent = WSInput
 
 local WSInputStroke = Instance.new("UIStroke")
-WSInputStroke.Color = AccentColor
+WSInputStroke.Color = Core.Colors.AccentColor
 WSInputStroke.Thickness = 1
 WSInputStroke.Transparency = 0.7
 WSInputStroke.Parent = WSInput
 
-WSInput.FocusLost:Connect(function()
-    local val = tonumber(WSInput.Text)
-    if val and val >= 0 and val <= 500 then
-        WalkSpeedValue = val
-        SaveConfig()
-        ShowNotif("✅ WalkSpeed set to " .. val, 2)
-    else
-        WSInput.Text = tostring(WalkSpeedValue)
-        ShowNotif("⚠️ Invalid value (0-500)", 2)
-    end
-end)
-
--- Jump Power
+-- Jump Power Input
 local JPLabel = Instance.new("TextLabel")
+JPLabel.Name = "JPLabel"
 JPLabel.Size = UDim2.new(1, -40, 0, 25)
 JPLabel.Position = UDim2.new(0, 20, 0, 140)
 JPLabel.BackgroundTransparency = 1
@@ -620,11 +976,12 @@ JPLabel.TextXAlignment = Enum.TextXAlignment.Left
 JPLabel.Parent = Tab1
 
 local JPInput = Instance.new("TextBox")
+JPInput.Name = "JPInput"
 JPInput.Size = UDim2.new(0, 120, 0, 35)
 JPInput.Position = UDim2.new(0, 20, 0, 170)
-JPInput.BackgroundColor3 = DarkBase
+JPInput.BackgroundColor3 = Core.Colors.DarkBase
 JPInput.BackgroundTransparency = 0.4
-JPInput.Text = tostring(JumpPowerValue)
+JPInput.Text = tostring(Core.Config.JumpPower)
 JPInput.TextColor3 = Color3.new(1,1,1)
 JPInput.TextSize = 16
 JPInput.Font = Enum.Font.GothamBold
@@ -635,180 +992,214 @@ JPInputCorner.CornerRadius = UDim.new(0, 6)
 JPInputCorner.Parent = JPInput
 
 local JPInputStroke = Instance.new("UIStroke")
-JPInputStroke.Color = AccentColor
+JPInputStroke.Color = Core.Colors.AccentColor
 JPInputStroke.Thickness = 1
 JPInputStroke.Transparency = 0.7
 JPInputStroke.Parent = JPInput
 
-JPInput.FocusLost:Connect(function()
-    local val = tonumber(JPInput.Text)
-    if val and val >= 0 and val <= 500 then
-        JumpPowerValue = val
-        SaveConfig()
-        ShowNotif("✅ JumpPower set to " .. val, 2)
+-- Apply Button
+local ApplyButton = Instance.new("TextButton")
+ApplyButton.Name = "ApplyButton"
+ApplyButton.Size = UDim2.new(0, 120, 0, 40)
+ApplyButton.Position = UDim2.new(0, 160, 0, 120)
+ApplyButton.BackgroundColor3 = Core.Colors.DarkColor
+ApplyButton.BackgroundTransparency = 0.6
+ApplyButton.Text = "APPLY"
+ApplyButton.TextColor3 = Color3.new(1,1,1)
+ApplyButton.TextSize = 16
+ApplyButton.Font = Enum.Font.GothamBold
+ApplyButton.Parent = Tab1
+
+local ApplyCorner = Instance.new("UICorner")
+ApplyCorner.CornerRadius = UDim.new(0, 6)
+ApplyCorner.Parent = ApplyButton
+
+local ApplyStroke = Instance.new("UIStroke")
+ApplyStroke.Color = Core.Colors.AccentColor
+ApplyStroke.Thickness = 1
+ApplyStroke.Transparency = 0.7
+ApplyStroke.Parent = ApplyButton
+
+-- Apply Logic
+local function ApplyMovementMods()
+    local humanoid = Core.GetHumanoid() -- ใช้ utility จาก Core
+    
+    if humanoid then
+        -- ใช้ pcall ป้องกัน error
+        pcall(function()
+            humanoid.WalkSpeed = Core.Config.WalkSpeed
+            humanoid.JumpPower = Core.Config.JumpPower
+        end)
+        
+        Core.ShowNotification("✅ Movement mods applied", 2)
     else
-        JPInput.Text = tostring(JumpPowerValue)
-        ShowNotif("⚠️ Invalid value (0-500)", 2)
+        Core.ShowNotification("❌ Humanoid not found", 2)
+    end
+end
+
+ApplyButton.MouseButton1Click:Connect(ApplyMovementMods)
+
+-- Validation for inputs
+WSInput.FocusLost:Connect(function()
+    local val = tonumber(WSInput.Text)
+    if val and val >= 0 and val <= 500 then -- ตรวจสอบช่วงค่า
+        Core.Config.WalkSpeed = val
+        WSInput.Text = tostring(val)
+        Core.SaveConfig()
+        Core.ShowNotification("✅ WalkSpeed set to " .. val, 2)
+    else
+        WSInput.Text = tostring(Core.Config.WalkSpeed) -- กลับค่าเดิม
+        Core.ShowNotification("❌ Invalid value (0-500)", 2)
     end
 end)
 
--- Apply Button
-local ApplyBtn = Instance.new("TextButton")
-ApplyBtn.Size = UDim2.new(0, 120, 0, 35)
-ApplyBtn.Position = UDim2.new(0, 160, 0, 90)
-ApplyBtn.BackgroundColor3 = DarkColor
-ApplyBtn.BackgroundTransparency = 0.4
-ApplyBtn.Text = "APPLY"
-ApplyBtn.TextColor3 = Color3.new(1,1,1)
-ApplyBtn.TextSize = 16
-ApplyBtn.Font = Enum.Font.GothamBold
-ApplyBtn.Parent = Tab1
-
-local ApplyBtnCorner = Instance.new("UICorner")
-ApplyBtnCorner.CornerRadius = UDim.new(0, 6)
-ApplyBtnCorner.Parent = ApplyBtn
-
-local ApplyBtnStroke = Instance.new("UIStroke")
-ApplyBtnStroke.Color = AccentColor
-ApplyBtnStroke.Thickness = 1
-ApplyBtnStroke.Transparency = 0.7
-ApplyBtnStroke.Parent = ApplyBtn
-
-ApplyBtn.MouseButton1Click:Connect(ApplyMovementMods)
-AddHover(ApplyBtn)
-
--- ESP Section (Noclip Removed)
-local ESPSection = Instance.new("Frame")
-ESPSection.Size = UDim2.new(1, -30, 0, 80)
-ESPSection.Position = UDim2.new(0, 15, 0, 220)
-ESPSection.BackgroundColor3 = DarkBase
-ESPSection.BackgroundTransparency = 0.7
-ESPSection.BorderSizePixel = 0
-ESPSection.Parent = Tab1
-
-local ESPSectionCorner = Instance.new("UICorner")
-ESPSectionCorner.CornerRadius = UDim.new(0, 8)
-ESPSectionCorner.Parent = ESPSection
-
-local ESPSectionStroke = Instance.new("UIStroke")
-ESPSectionStroke.Color = AccentColor
-ESPSectionStroke.Thickness = 1
-ESPSectionStroke.Transparency = 0.6
-ESPSectionStroke.Parent = ESPSection
-
-local ESPSectionTitle = Instance.new("TextLabel")
-ESPSectionTitle.Size = UDim2.new(1, -10, 0, 20)
-ESPSectionTitle.Position = UDim2.new(0, 5, 0, 5)
-ESPSectionTitle.BackgroundTransparency = 1
-ESPSectionTitle.Text = "ESP CONTROLS"
-ESPSectionTitle.TextColor3 = AccentColor
-ESPSectionTitle.TextSize = 14
-ESPSectionTitle.Font = Enum.Font.GothamBold
-ESPSectionTitle.TextXAlignment = Enum.TextXAlignment.Left
-ESPSectionTitle.Parent = ESPSection
-
--- ESP Name Button
-local ESPToggle = Instance.new("TextButton")
-ESPToggle.Size = UDim2.new(0, 130, 0, 45)
-ESPToggle.Position = UDim2.new(0, 10, 0, 30)
-ESPToggle.BackgroundColor3 = DarkColor
-ESPToggle.BackgroundTransparency = ESPNameSettings.Enabled and 0.3 or 0.6
-ESPToggle.Text = ESPNameSettings.Enabled and "👁️ NAME: ON" or "👁️ NAME: OFF"
-ESPToggle.TextColor3 = Color3.new(1,1,1)
-ESPToggle.TextSize = 15
-ESPToggle.Font = Enum.Font.GothamBlack
-ESPToggle.Parent = ESPSection
-
-local ESPCorner = Instance.new("UICorner")
-ESPCorner.CornerRadius = UDim.new(0, 6)
-ESPCorner.Parent = ESPToggle
-
-local ESPStroke = Instance.new("UIStroke")
-ESPStroke.Color = AccentColor
-ESPStroke.Thickness = 2
-ESPStroke.Transparency = 0.6
-ESPStroke.Parent = ESPToggle
-
-ESPToggle.MouseButton1Click:Connect(function()
-    ToggleESPName() -- เรียกจากฟังก์ชันใน Part 1
-    ESPToggle.Text = ESPNameSettings.Enabled and "👁️ NAME: ON" or "👁️ NAME: OFF"
-    TweenService:Create(ESPToggle, TweenInfoSmooth, {BackgroundTransparency = ESPNameSettings.Enabled and 0.3 or 0.6}):Play()
+JPInput.FocusLost:Connect(function()
+    local val = tonumber(JPInput.Text)
+    if val and val >= 0 and val <= 500 then
+        Core.Config.JumpPower = val
+        JPInput.Text = tostring(val)
+        Core.SaveConfig()
+        Core.ShowNotification("✅ JumpPower set to " .. val, 2)
+    else
+        JPInput.Text = tostring(Core.Config.JumpPower)
+        Core.ShowNotification("❌ Invalid value (0-500)", 2)
+    end
 end)
 
--- ESP Highlight Button
-local HighlightToggle = Instance.new("TextButton")
-HighlightToggle.Size = UDim2.new(0, 130, 0, 45)
-HighlightToggle.Position = UDim2.new(0, 150, 0, 30)
-HighlightToggle.BackgroundColor3 = DarkColor
-HighlightToggle.BackgroundTransparency = ESPHighlightSettings.Enabled and 0.3 or 0.6
-HighlightToggle.Text = ESPHighlightSettings.Enabled and "✨ HIGHLIGHT: ON" or "✨ HIGHLIGHT: OFF"
-HighlightToggle.TextColor3 = Color3.new(1,1,1)
-HighlightToggle.TextSize = 15
-HighlightToggle.Font = Enum.Font.GothamBlack
-HighlightToggle.Parent = ESPSection
+-- Add hover effect
+Core.AddHoverEffect(ApplyButton)
 
-local HighlightCorner = Instance.new("UICorner")
-HighlightCorner.CornerRadius = UDim.new(0, 6)
-HighlightCorner.Parent = HighlightToggle
+-- ESP Toggle Buttons
+local ESPToggleLabel = Instance.new("TextLabel")
+ESPToggleLabel.Name = "ESPToggleLabel"
+ESPToggleLabel.Size = UDim2.new(1, -40, 0, 25)
+ESPToggleLabel.Position = UDim2.new(0, 20, 0, 230)
+ESPToggleLabel.BackgroundTransparency = 1
+ESPToggleLabel.Text = "ESP Controls"
+ESPToggleLabel.TextColor3 = Core.Colors.AccentColor
+ESPToggleLabel.TextSize = 18
+ESPToggleLabel.Font = Enum.Font.GothamBold
+ESPToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+ESPToggleLabel.Parent = Tab1
 
-local HighlightStroke = Instance.new("UIStroke")
-HighlightStroke.Color = AccentColor
-HighlightStroke.Thickness = 2
-HighlightStroke.Transparency = 0.6
-HighlightStroke.Parent = HighlightToggle
+local ESPNameToggle = Instance.new("TextButton")
+ESPNameToggle.Name = "ESPNameToggle"
+ESPNameToggle.Size = UDim2.new(0, 140, 0, 35)
+ESPNameToggle.Position = UDim2.new(0, 20, 0, 265)
+ESPNameToggle.BackgroundColor3 = Core.Colors.DarkColor
+ESPNameToggle.BackgroundTransparency = 0.6
+ESPNameToggle.Text = "ESP NAME: OFF"
+ESPNameToggle.TextColor3 = Color3.new(1,1,1)
+ESPNameToggle.TextSize = 14
+ESPNameToggle.Font = Enum.Font.GothamBold
+ESPNameToggle.Parent = Tab1
 
-HighlightToggle.MouseButton1Click:Connect(function()
-    ToggleESPHighlight() -- เรียกจากฟังก์ชันใน Part 1
-    HighlightToggle.Text = ESPHighlightSettings.Enabled and "✨ HIGHLIGHT: ON" or "✨ HIGHLIGHT: OFF"
-    TweenService:Create(HighlightToggle, TweenInfoSmooth, {BackgroundTransparency = ESPHighlightSettings.Enabled and 0.3 or 0.6}):Play()
+local ESPNameCorner = Instance.new("UICorner")
+ESPNameCorner.CornerRadius = UDim.new(0, 6)
+ESPNameCorner.Parent = ESPNameToggle
+
+local ESPNameStroke = Instance.new("UIStroke")
+ESPNameStroke.Color = Core.Colors.AccentColor
+ESPNameStroke.Thickness = 1
+ESPNameStroke.Transparency = 0.7
+ESPNameStroke.Parent = ESPNameToggle
+
+ESPNameToggle.MouseButton1Click:Connect(function()
+    ESPController.ToggleNameESP()
+    ESPNameToggle.Text = ESPController.isEnabled.Name and "ESP NAME: ON" or "ESP NAME: OFF"
+    TweenService:Create(ESPNameToggle, Core.TweenInfo.Smooth, {
+        BackgroundTransparency = ESPController.isEnabled.Name and 0.3 or 0.6
+    }):Play()
 end)
 
--- Enhanced Hover for ESP Buttons
-local function AddHoverEnhanced(btn)
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.25}):Play()
-        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = AccentColor}):Play()
-        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.3}):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.6}):Play()
-        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = Color3.new(1,1,1)}):Play()
-        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.6}):Play()
-    end)
-end
+Core.AddHoverEffect(ESPNameToggle)
 
-AddHoverEnhanced(ESPToggle)
-AddHoverEnhanced(HighlightToggle)
+local ESPHighlightToggle = Instance.new("TextButton")
+ESPHighlightToggle.Name = "ESPHighlightToggle"
+ESPHighlightToggle.Size = UDim2.new(0, 140, 0, 35)
+ESPHighlightToggle.Position = UDim2.new(0, 180, 0, 265)
+ESPHighlightToggle.BackgroundColor3 = Core.Colors.DarkColor
+ESPHighlightToggle.BackgroundTransparency = 0.6
+ESPHighlightToggle.Text = "ESP HIGH: OFF"
+ESPHighlightToggle.TextColor3 = Color3.new(1,1,1)
+ESPHighlightToggle.TextSize = 14
+ESPHighlightToggle.Font = Enum.Font.GothamBold
+ESPHighlightToggle.Parent = Tab1
 
--- ========== END PART 1 - Copy Part 2 Below ==========
-print("Fierce Executor v1.5.4 Part 1 Loaded")
---============== Fierce Executor v1.5.4 (Part 2/2 - Tabs) ===============
--- พาร์ท 2: Script Hub, Visuals, Info + Initialization
--- ต่อจาก Part 1 โดยตรง (ไม่ต้องเว้นบรรทัด)
---=======================================================================
+local ESPHICorner = Instance.new("UICorner")
+ESPHICorner.CornerRadius = UDim.new(0, 6)
+ESPHICorner.Parent = ESPHighlightToggle
+
+local ESPHIStroke = Instance.new("UIStroke")
+ESPHIStroke.Color = Core.Colors.AccentColor
+ESPHIStroke.Thickness = 1
+ESPHIStroke.Transparency = 0.7
+ESPHIStroke.Parent = ESPHighlightToggle
+
+ESPHighlightToggle.MouseButton1Click:Connect(function()
+    ESPController.ToggleHighlightESP()
+    ESPHighlightToggle.Text = ESPController.isEnabled.Highlight and "ESP HIGH: ON" or "ESP HIGH: OFF"
+    TweenService:Create(ESPHighlightToggle, Core.TweenInfo.Smooth, {
+        BackgroundTransparency = ESPController.isEnabled.Highlight and 0.3 or 0.6
+    }):Play()
+end)
+
+Core.AddHoverEffect(ESPHighlightToggle)
 
 -- ========== TAB 2: SCRIPT HUB ==========
-local Tab2 = TabContents[2]
+-- เพิ่ม TabButton ที่ 3
+local TabButton3 = Instance.new("TextButton")
+TabButton3.Name = "TabButton3"
+TabButton3.Size = UDim2.new(1, 0, 0, 55)
+TabButton3.Position = UDim2.new(0, 0, 0, 2*65 + 20) -- ตำแหน่งที่ 3
+TabButton3.BackgroundTransparency = 1
+TabButton3.Text = "🔥"
+TabButton3.TextSize = 36
+TabButton3.TextColor3 = Color3.new(1,1,1)
+TabButton3.Font = Enum.Font.GothamBlack
+TabButton3.Parent = Core.Sidebar
+
+local TabGlow3 = Instance.new("UIStroke")
+TabGlow3.Transparency = 0.9
+TabGlow3.Color = Core.Colors.AccentColor
+TabGlow3.Thickness = 2
+TabGlow3.Parent = TabButton3
+
+table.insert(Core.TabButtons, TabButton3) -- เพิ่มเข้า array
+
+-- สร้าง Content สำหรับ Tab 3
+local TabContent3 = Instance.new("Frame")
+TabContent3.Name = "Tab3Content"
+TabContent3.Size = UDim2.new(1, 0, 1, 0)
+TabContent3.Position = UDim2.new(0, 0, 0, 0)
+TabContent3.BackgroundTransparency = 1
+TabContent3.Visible = false -- ซ่อนไว้ก่อน
+TabContent3.Parent = Core.Content
+
+table.insert(Core.TabContents, TabContent3) -- เพิ่มเข้า array
+
+local Tab2 = TabContent3 -- ตั้งชื่อให้ตรงกับเวอร์ชันเก่า
 
 local Tab2Title = Instance.new("TextLabel")
 Tab2Title.Size = UDim2.new(1, -20, 0, 40)
 Tab2Title.Position = UDim2.new(0, 10, 0, 10)
 Tab2Title.BackgroundTransparency = 1
 Tab2Title.Text = "SCRIPT HUB"
-Tab2Title.TextColor3 = AccentColor
+Tab2Title.TextColor3 = Core.Colors.AccentColor
 Tab2Title.TextSize = 20
 Tab2Title.Font = Enum.Font.GothamBold
 Tab2Title.TextXAlignment = Enum.TextXAlignment.Left
 Tab2Title.Parent = Tab2
 
+-- Scroll Frame สำหรับ Script Hub
 local HubScroll = Instance.new("ScrollingFrame")
 HubScroll.Size = UDim2.new(1, -10, 1, -50)
 HubScroll.Position = UDim2.new(0, 5, 0, 50)
 HubScroll.BackgroundTransparency = 1
 HubScroll.BorderSizePixel = 0
 HubScroll.ScrollBarThickness = 4
-HubScroll.ScrollBarImageColor3 = AccentColor
-HubScroll.CanvasSize = UDim2.new(0, 0, 0, 750)
+HubScroll.ScrollBarImageColor3 = Core.Colors.AccentColor
+HubScroll.CanvasSize = UDim2.new(0, 0, 0, 750) -- ขนาด canvas (scrollable area)
 HubScroll.Parent = Tab2
 
 -- Script Hub Data (10 Scripts)
@@ -825,25 +1216,30 @@ local ScriptHub = {
     {name = "Tateyama UI", desc = "Blox Fruits Alt", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/xZc-Hiro/tateyama-tsukasa-ui/main/source.lua'))()", games = {2753915549, 4442272183, 7449423635}, key = false}
 }
 
+-- ฟังก์ชันสร้างปุ่ม script
 local function CreateScriptButton(data, index)
     local btn = Instance.new("TextButton")
+    btn.Name = "ScriptButton_" .. data.name
     btn.Size = UDim2.new(1, -10, 0, 70)
-    btn.Position = UDim2.new(0, 5, 0, (index-1)*75)
-    btn.BackgroundColor3 = DarkBase
+    btn.Position = UDim2.new(0, 5, 0, (index-1)*75) -- ห่างกัน 75px
+    btn.BackgroundColor3 = Core.Colors.DarkBase
     btn.BackgroundTransparency = 0.5
-    btn.Text = ""
+    btn.Text = "" -- จะใส่ text ใน labels ย่อย
     btn.Parent = HubScroll
     
+    -- มุมโค้ง
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = btn
     
+    -- Glow
     local stroke = Instance.new("UIStroke")
-    stroke.Color = AccentColor
+    stroke.Color = Core.Colors.AccentColor
     stroke.Thickness = 1
     stroke.Transparency = 0.8
     stroke.Parent = btn
     
+    -- Title
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -20, 0.4, 0)
     title.Position = UDim2.new(0, 10, 0, 5)
@@ -855,6 +1251,7 @@ local function CreateScriptButton(data, index)
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = btn
     
+    -- Description
     local desc = Instance.new("TextLabel")
     desc.Size = UDim2.new(1, -20, 0.3, 0)
     desc.Position = UDim2.new(0, 10, 0.4, 0)
@@ -866,6 +1263,7 @@ local function CreateScriptButton(data, index)
     desc.TextXAlignment = Enum.TextXAlignment.Left
     desc.Parent = btn
     
+    -- Key Status
     local keyStatus = Instance.new("TextLabel")
     keyStatus.Size = UDim2.new(1, -20, 0.3, 0)
     keyStatus.Position = UDim2.new(0, 10, 0.7, 0)
@@ -877,6 +1275,7 @@ local function CreateScriptButton(data, index)
     keyStatus.TextXAlignment = Enum.TextXAlignment.Left
     keyStatus.Parent = btn
     
+    -- ตรวจสอบว่า script รองรับเกมนี้ไหม
     local isSupported = false
     for _, id in ipairs(data.games) do
         if id == game.PlaceId then
@@ -885,75 +1284,116 @@ local function CreateScriptButton(data, index)
         end
     end
     
+    -- ถ้าไม่รองรับและมีระบุเกม -> จางลง
     if not isSupported and #data.games > 0 then
-        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.7}):Play()
+        TweenService:Create(btn, Core.TweenInfo.Smooth, {BackgroundTransparency = 0.7}):Play()
         title.TextColor3 = Color3.new(0.6,0.6,0.6)
         desc.TextColor3 = Color3.new(0.4,0.4,0.4)
         keyStatus.TextColor3 = Color3.new(0.4,0.4,0.4)
     end
     
+    -- Hover Effects
     btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.3}):Play()
-        TweenService:Create(stroke, TweenInfoSmooth, {Transparency = 0.5}):Play()
+        TweenService:Create(btn, Core.TweenInfo.Smooth, {BackgroundTransparency = 0.3}):Play()
+        TweenService:Create(stroke, Core.TweenInfo.Smooth, {Transparency = 0.5}):Play()
     end)
     
     btn.MouseLeave:Connect(function()
         local target = (isSupported or #data.games == 0) and 0.5 or 0.7
-        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = target}):Play()
-        TweenService:Create(stroke, TweenInfoSmooth, {Transparency = 0.8}):Play()
+        TweenService:Create(btn, Core.TweenInfo.Smooth, {BackgroundTransparency = target}):Play()
+        TweenService:Create(stroke, Core.TweenInfo.Smooth, {Transparency = 0.8}):Play()
     end)
     
+    -- Click Handler
     btn.MouseButton1Click:Connect(function()
+        -- เช็คความเข้ากันได้
         if not isSupported and #data.games > 0 then
-            ShowNotif("⚠️ Not optimized for this game", 3)
+            Core.ShowNotification("⚠️ Not optimized for this game", 3)
             return
         end
         
+        -- ถ้าต้องการ key ให้ copy URL
         if data.key then
-            ShowNotif("🔑 Opening key link...", 2)
-            if syn and syn.write_clipboard then
+            Core.ShowNotification("🔑 Opening key link...", 2)
+            if syn and syn.write_clipboard then -- รองรับ Synapse
                 syn.write_clipboard(data.keyurl)
-                ShowNotif("📋 Key URL copied!", 3)
+                Core.ShowNotification("📋 Key URL copied!", 3)
             end
         end
         
-        ShowNotif("📜 Executing " .. data.name .. "...", 2)
+        Core.ShowNotification("📜 Executing " .. data.name .. "...", 2)
+        
+        -- Execute ใน spawn เพื่อไม่ block UI
         spawn(function()
             pcall(function()
-                loadstring(data.script)()
+                loadstring(data.script)() -- โหลด script
             end)
         end)
     end)
     
-    AddHover(btn)
+    Core.AddHoverEffect(btn)
     return btn
 end
 
+-- สร้างปุ่มทั้งหมด
 for i, scriptData in ipairs(ScriptHub) do
     CreateScriptButton(scriptData, i)
 end
 
 -- ========== TAB 3: PLAYER VISUALS ==========
-local Tab3 = TabContents[3]
+-- เพิ่ม TabButton ที่ 4
+local TabButton4 = Instance.new("TextButton")
+TabButton4.Name = "TabButton4"
+TabButton4.Size = UDim2.new(1, 0, 0, 55)
+TabButton4.Position = UDim2.new(0, 0, 0, 3*65 + 20) -- ตำแหน่งที่ 4
+TabButton4.BackgroundTransparency = 1
+TabButton4.Text = "ℹ️"
+TabButton4.TextSize = 36
+TabButton4.TextColor3 = Color3.new(1,1,1)
+TabButton4.Font = Enum.Font.GothamBlack
+TabButton4.Parent = Core.Sidebar
+
+local TabGlow4 = Instance.new("UIStroke")
+TabGlow4.Transparency = 0.9
+TabGlow4.Color = Core.Colors.AccentColor
+TabGlow4.Thickness = 2
+TabGlow4.Parent = TabButton4
+
+table.insert(Core.TabButtons, TabButton4) -- เพิ่มเข้า array
+
+-- สร้าง Content สำหรับ Tab 4
+local TabContent4 = Instance.new("Frame")
+TabContent4.Name = "Tab4Content"
+TabContent4.Size = UDim2.new(1, 0, 1, 0)
+TabContent4.Position = UDim2.new(0, 0, 0, 0)
+TabContent4.BackgroundTransparency = 1
+TabContent4.Visible = false
+TabContent4.Parent = Core.Content
+
+table.insert(Core.TabContents, TabContent4) -- เพิ่มเข้า array
+
+local Tab3 = TabContent4 -- ตั้งชื่อให้ตรงกับเวอร์ชันเก่า
 
 local Tab3Title = Instance.new("TextLabel")
 Tab3Title.Size = UDim2.new(1, -20, 0, 40)
 Tab3Title.Position = UDim2.new(0, 10, 0, 10)
 Tab3Title.BackgroundTransparency = 1
 Tab3Title.Text = "PLAYER VISUALS"
-Tab3Title.TextColor3 = AccentColor
+Tab3Title.TextColor3 = Core.Colors.AccentColor
 Tab3Title.TextSize = 20
 Tab3Title.Font = Enum.Font.GothamBold
 Tab3Title.TextXAlignment = Enum.TextXAlignment.Left
 Tab3Title.Parent = Tab3
 
-local FOVValue = 70
+-- FOV Changer
+local FOVValue = Core.Config.Visuals.FOV
 local FOVToggle = Instance.new("TextButton")
+FOVToggle.Name = "FOVToggle"
 FOVToggle.Size = UDim2.new(0, 120, 0, 35)
 FOVToggle.Position = UDim2.new(0, 20, 0, 60)
-FOVToggle.BackgroundColor3 = DarkColor
+FOVToggle.BackgroundColor3 = Core.Colors.DarkColor
 FOVToggle.BackgroundTransparency = 0.6
-FOVToggle.Text = "FOV: 70"
+FOVToggle.Text = "FOV: " .. FOVValue
 FOVToggle.TextColor3 = Color3.new(1,1,1)
 FOVToggle.TextSize = 14
 FOVToggle.Font = Enum.Font.GothamBold
@@ -964,285 +1404,31 @@ FOVCorner.CornerRadius = UDim.new(0, 6)
 FOVCorner.Parent = FOVToggle
 
 local FOVStroke = Instance.new("UIStroke")
-FOVStroke.Color = AccentColor
+FOVStroke.Color = Core.Colors.AccentColor
 FOVStroke.Thickness = 1
 FOVStroke.Transparency = 0.7
 FOVStroke.Parent = FOVToggle
 
 FOVToggle.MouseButton1Click:Connect(function()
+    -- สลับค่า FOV: 70 -> 80 -> 90 -> ... -> 120 -> 70
     FOVValue = FOVValue >= 120 and 70 or FOVValue + 10
-    workspace.CurrentCamera.FieldOfView = FOVValue
+    workspace.CurrentCamera.FieldOfView = FOVValue -- เปลี่ยน FOV ของกล้อง
     FOVToggle.Text = "FOV: " .. FOVValue
-    TweenService:Create(FOVToggle, TweenInfoSmooth, {BackgroundTransparency = FOVValue ~= 70 and 0.3 or 0.6}):Play()
-    ShowNotif("✅ FOV set to " .. FOVValue, 2)
+    
+    -- เปลี่ยนสีปุ่มตามสถานะ
+    TweenService:Create(FOVToggle, Core.TweenInfo.Smooth, {
+        BackgroundTransparency = FOVValue ~= 70 and 0.3 or 0.6
+    }):Play()
+    
+    Core.Config.Visuals.FOV = FOVValue
+    Core.ShowNotification("✅ FOV set to " .. FOVValue, 2)
 end)
-AddHover(FOVToggle)
+Core.AddHoverEffect(FOVToggle)
 
-local FullbrightEnabled = false
+-- Fullbright Toggle
+local FullbrightEnabled = Core.Config.Visuals.Fullbright
 local FullbrightToggle = Instance.new("TextButton")
+FullbrightToggle.Name = "FullbrightToggle"
 FullbrightToggle.Size = UDim2.new(0, 120, 0, 35)
 FullbrightToggle.Position = UDim2.new(0, 160, 0, 60)
-FullbrightToggle.BackgroundColor3 = DarkColor
-FullbrightToggle.BackgroundTransparency = 0.6
-FullbrightToggle.Text = "FULLBRIGHT: OFF"
-FullbrightToggle.TextColor3 = Color3.new(1,1,1)
-FullbrightToggle.TextSize = 12
-FullbrightToggle.Font = Enum.Font.GothamBold
-FullbrightToggle.Parent = Tab3
-
-local FBCorner = Instance.new("UICorner")
-FBCorner.CornerRadius = UDim.new(0, 6)
-FBCorner.Parent = FullbrightToggle
-
-local FBStroke = Instance.new("UIStroke")
-FBStroke.Color = AccentColor
-FBStroke.Thickness = 1
-FBStroke.Transparency = 0.7
-FBStroke.Parent = FullbrightToggle
-
-FullbrightToggle.MouseButton1Click:Connect(function()
-    FullbrightEnabled = not FullbrightEnabled
-    FullbrightToggle.Text = FullbrightEnabled and "FULLBRIGHT: ON" or "FULLBRIGHT: OFF"
-    TweenService:Create(FullbrightToggle, TweenInfoSmooth, {BackgroundTransparency = FullbrightEnabled and 0.3 or 0.6}):Play()
-    
-    if FullbrightEnabled then
-        Lighting.Brightness = 2
-        Lighting.GlobalShadows = false
-        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-        ShowNotif("✅ Fullbright enabled", 2)
-    else
-        Lighting.Brightness = 1
-        Lighting.GlobalShadows = true
-        Lighting.Ambient = Color3.fromRGB(127, 127, 127)
-        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-        ShowNotif("❌ Fullbright disabled", 2)
-    end
-end)
-AddHover(FullbrightToggle)
-
-local NoFogEnabled = false
-local NoFogToggle = Instance.new("TextButton")
-NoFogToggle.Size = UDim2.new(0, 120, 0, 35)
-NoFogToggle.Position = UDim2.new(0, 20, 0, 110)
-NoFogToggle.BackgroundColor3 = DarkColor
-NoFogToggle.BackgroundTransparency = 0.6
-NoFogToggle.Text = "NOFOG: OFF"
-NoFogToggle.TextColor3 = Color3.new(1,1,1)
-NoFogToggle.TextSize = 14
-NoFogToggle.Font = Enum.Font.GothamBold
-NoFogToggle.Parent = Tab3
-
-local NFContinue = Instance.new("UICorner")
-NFContinue.CornerRadius = UDim.new(0, 6)
-NFContinue.Parent = NoFogToggle
-
-local NFStroke = Instance.new("UIStroke")
-NFStroke.Color = AccentColor
-NFStroke.Thickness = 1
-NFStroke.Transparency = 0.7
-NFStroke.Parent = NoFogToggle
-
-NoFogToggle.MouseButton1Click:Connect(function()
-    NoFogEnabled = not NoFogEnabled
-    NoFogToggle.Text = NoFogEnabled and "NOFOG: ON" or "NOFOG: OFF"
-    TweenService:Create(NoFogToggle, TweenInfoSmooth, {BackgroundTransparency = NoFogEnabled and 0.3 or 0.6}):Play()
-    
-    if NoFogEnabled then
-        Lighting.FogEnd = 100000
-        Lighting.FogStart = 0
-        ShowNotif("✅ NoFog enabled", 2)
-    else
-        Lighting.FogEnd = 1000
-        Lighting.FogStart = 0
-        ShowNotif("❌ NoFog disabled", 2)
-    end
-end)
-AddHover(NoFogToggle)
-
-local CrosshairEnabled = false
-local CrosshairObj
-local CrosshairToggle = Instance.new("TextButton")
-CrosshairToggle.Size = UDim2.new(0, 120, 0, 35)
-CrosshairToggle.Position = UDim2.new(0, 160, 0, 110)
-CrosshairToggle.BackgroundColor3 = DarkColor
-CrosshairToggle.BackgroundTransparency = 0.6
-CrosshairToggle.Text = "XHAIR: OFF"
-CrosshairToggle.TextColor3 = Color3.new(1,1,1)
-CrosshairToggle.TextSize = 14
-CrosshairToggle.Font = Enum.Font.GothamBold
-CrosshairToggle.Parent = Tab3
-
-local XHRCorner = Instance.new("UICorner")
-XHRCorner.CornerRadius = UDim.new(0, 6)
-XHRCorner.Parent = CrosshairToggle
-
-local XHRStroke = Instance.new("UIStroke")
-XHRStroke.Color = AccentColor
-XHRStroke.Thickness = 1
-XHRStroke.Transparency = 0.7
-XHRStroke.Parent = CrosshairToggle
-
-CrosshairToggle.MouseButton1Click:Connect(function()
-    CrosshairEnabled = not CrosshairEnabled
-    CrosshairToggle.Text = CrosshairEnabled and "XHAIR: ON" or "XHAIR: OFF"
-    TweenService:Create(CrosshairToggle, TweenInfoSmooth, {BackgroundTransparency = CrosshairEnabled and 0.3 or 0.6}):Play()
-    
-    if CrosshairEnabled then
-        CrosshairObj = Instance.new("Frame")
-        CrosshairObj.Size = UDim2.new(0, 20, 0, 20)
-        CrosshairObj.Position = UDim2.new(0.5, -10, 0.5, -10)
-        CrosshairObj.BackgroundTransparency = 1
-        CrosshairObj.ZIndex = 1000
-        CrosshairObj.Parent = ScreenGui
-        
-        local h = Instance.new("Frame")
-        h.Size = UDim2.new(1, 0, 0, 2)
-        h.Position = UDim2.new(0, 0, 0.5, -1)
-        h.BackgroundColor3 = AccentColor
-        h.BorderSizePixel = 0
-        h.Parent = CrosshairObj
-        
-        local v = Instance.new("Frame")
-        v.Size = UDim2.new(0, 2, 1, 0)
-        v.Position = UDim2.new(0.5, -1, 0, 0)
-        v.BackgroundColor3 = AccentColor
-        v.BorderSizePixel = 0
-        v.Parent = CrosshairObj
-        
-        ShowNotif("✅ Crosshair enabled", 2)
-    else
-        if CrosshairObj then
-            CrosshairObj:Destroy()
-        end
-        ShowNotif("❌ Crosshair disabled", 2)
-    end
-end)
-AddHover(CrosshairToggle)
-
--- ========== TAB 4: INFO / UPDATES ==========
-local Tab4 = TabContents[4]
-
-local Tab4Title = Instance.new("TextLabel")
-Tab4Title.Size = UDim2.new(1, -20, 0, 40)
-Tab4Title.Position = UDim2.new(0, 10, 0, 10)
-Tab4Title.BackgroundTransparency = 1
-Tab4Title.Text = "INFO / UPDATES"
-Tab4Title.TextColor3 = AccentColor
-Tab4Title.TextSize = 20
-Tab4Title.Font = Enum.Font.GothamBold
-Tab4Title.TextXAlignment = Enum.TextXAlignment.Left
-Tab4Title.Parent = Tab4
-
-local UpdateList = Instance.new("TextLabel")
-UpdateList.Size = UDim2.new(1, -20, 1, -60)
-UpdateList.Position = UDim2.new(0, 10, 0, 50)
-UpdateList.BackgroundTransparency = 1
-UpdateList.Text = "🗓️ Last Updated: 2026-01-05 (v1.5.4)\n\n📦 Version: 1.5.4 (Noclip Removed)\n\n✨ Latest Features:\n• ESP separated (Name & Highlight)\n• 10 Hub Scripts with Key Status\n• 4 Visuals Features (FOV, Fullbright, NoFog, Crosshair)\n• Scrolling Script Hub\n• Enhanced UI/UX\n• Mobile Touch Support\n\n🔧 Universal Script\nใช้ได้กับทุกเกมใน Roblox\n\n⚡ Performance Optimized\nไม่แลค ไม่กิน FPS\n\n💀 Developer: Fierce Team"
-UpdateList.TextColor3 = Color3.new(0.9,0.9,0.9)
-UpdateList.TextSize = 14
-UpdateList.Font = Enum.Font.Gotham
-UpdateList.TextXAlignment = Enum.TextXAlignment.Left
-UpdateList.TextYAlignment = Enum.TextYAlignment.Top
-UpdateList.Parent = Tab4
-
--- ========== FINAL INITIALIZATION ==========
-
--- Tab Switching Logic
-for i, btn in ipairs(TabButtons) do
-    btn.MouseButton1Click:Connect(function()
-        if CurrentTab == i then return end
-        TabContents[CurrentTab].Visible = false
-        CurrentTab = i
-        TabContents[i].Visible = true
-        for j, button in ipairs(TabButtons) do
-            TweenService:Create(button, TweenInfoSmooth, {TextColor3 = (j == i and AccentColor or Color3.new(1,1,1))}):Play()
-        end
-    end)
-    
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.4}):Play()
-    end)
-    
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.9}):Play()
-    end)
-end
-
--- Dragging System
-local dragging = false
-local dragInput, dragStart, startPos
-
-Header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-    end
-end)
-
-Header.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-Header.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
--- Size Toggle & Minimize/Maximize
-local isMinimized = false
-local isLarge = false
-
-MaximizeButton.MouseButton1Click:Connect(function()
-    if isMinimized then return end
-    isLarge = not isLarge
-    local targetSize = isLarge and LargeSize or NormalSize
-    local targetPos = isLarge and LargePos or NormalPos
-    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = targetSize, Position = targetPos}):Play()
-end)
-
-MinimizeButton.MouseButton1Click:Connect(function()
-    if isMinimized then return end
-    isMinimized = true
-    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
-    task.delay(0.35, function()
-        MainFrame.Visible = false
-        MinimizedIcon.Visible = true
-        MinimizedIcon.Size = UDim2.new(0, 0, 0, 0)
-        TweenService:Create(MinimizedIcon, TweenInfoBounce, {Size = UDim2.new(0, 50, 0, 50)}):Play()
-    end)
-end)
-
-MinimizedIcon.MouseButton1Click:Connect(function()
-    if not isMinimized then return end
-    isMinimized = false
-    TweenService:Create(MinimizedIcon, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
-    task.delay(0.35, function()
-        MinimizedIcon.Visible = false
-        MainFrame.Visible = true
-        local targetSize = isLarge and LargeSize or NormalSize
-        local targetPos = isLarge and LargePos or NormalPos
-        TweenService:Create(MainFrame, TweenInfoBounce, {Size = targetSize, Position = targetPos}):Play()
-    end)
-end)
-
--- Final Notification
-ShowNotif("💀 Fierce Executor v1.5.4 loaded!", 3)
-ShowNotif("✅ Noclip removed, ESP fixed", 3)
-
-print("Fierce Executor v1.5.4 - 2 Parts Loaded Successfully")
-print("✅ GUI Ready | ✅ ESP Ready | ✅ Hub Ready | ✅ Visuals Ready")
-
--- ========== END OF PART 2 ==========
-
+FullbrightToggle.BackgroundColor3 = Core.Colors.Dar
