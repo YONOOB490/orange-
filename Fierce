@@ -170,6 +170,210 @@ end
 
 LoadConfig()
 
+-- ========== ESP SYSTEMS (เพิ่มตรงนี้) ==========
+local ESPHighlightSettings = {Enabled = false}
+local ESPNameSettings = {Enabled = false, ShowName = true, ShowDistance = true, ShowHealth = true, TextSize = 10, Range = 500}
+local ESPConnection = nil
+local ESPObjects = {}
+
+local function CreateESPName(targetPlayer)
+    if ESPObjects[targetPlayer] then return end
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 120, 0, 35)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = ScreenGui
+    
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    bg.BackgroundTransparency = 0.6
+    bg.BorderSizePixel = 0
+    bg.Parent = billboard
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = bg
+    
+    -- Name Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -10, 0, 12)
+    nameLabel.Position = UDim2.new(0, 5, 0, 2)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = targetPlayer.Name
+    nameLabel.TextColor3 = AccentColor
+    nameLabel.TextSize = ESPNameSettings.TextSize
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.Parent = bg
+    
+    -- Distance Label
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Size = UDim2.new(1, -10, 0, 10)
+    distLabel.Position = UDim2.new(0, 5, 0, 14)
+    distLabel.BackgroundTransparency = 1
+    distLabel.Text = ""
+    distLabel.TextColor3 = Color3.new(0.9,0.9,0.9)
+    distLabel.TextSize = ESPNameSettings.TextSize - 1
+    distLabel.Font = Enum.Font.Gotham
+    distLabel.Parent = bg
+    
+    -- Health Label
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Size = UDim2.new(1, -10, 0, 10)
+    healthLabel.Position = UDim2.new(0, 5, 0, 23)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Text = ""
+    healthLabel.TextColor3 = Color3.new(0,1,0)
+    healthLabel.TextSize = ESPNameSettings.TextSize - 1
+    healthLabel.Font = Enum.Font.Gotham
+    healthLabel.Parent = bg
+    
+    ESPObjects[targetPlayer] = {billboard = billboard}
+    
+    -- Update Loop
+    spawn(function()
+        while ESPNameSettings.Enabled and Players:FindFirstChild(targetPlayer.Name) do
+            local char = targetPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local myChar = GetCharacter()
+                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    local distance = (char.HumanoidRootPart.Position - myChar.HumanoidRootPart.Position).Magnitude
+                    if distance <= ESPNameSettings.Range then
+                        billboard.Enabled = true
+                        billboard.Adornee = char.HumanoidRootPart
+                        distLabel.Text = string.format("%.0fm", distance)
+                        local humanoid = char:FindFirstChildOfClass("Humanoid")
+                        if humanoid then
+                            healthLabel.Text = string.format("%d/%d", humanoid.Health, humanoid.MaxHealth)
+                        end
+                    else
+                        billboard.Enabled = false
+                    end
+                end
+            else
+                billboard.Enabled = false
+            end
+            wait(0.15)
+        end
+        billboard:Destroy()
+        ESPObjects[targetPlayer] = nil
+    end)
+end
+
+local function ToggleESPName()
+    ESPNameSettings.Enabled = not ESPNameSettings.Enabled
+    
+    if ESPNameSettings.Enabled then
+        -- Create for existing players
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= Player then
+                CreateESPName(plr)
+            end
+        end
+        
+        -- Listen for new players
+        ESPConnection = Players.PlayerAdded:Connect(function(newPlayer)
+            if ESPNameSettings.Enabled then
+                wait(1)
+                CreateESPName(newPlayer)
+            end
+        end)
+        
+        ShowNotif("✅ ESP Name enabled", 2)
+    else
+        -- Disconnect listener
+        if ESPConnection then
+            ESPConnection:Disconnect()
+            ESPConnection = nil
+        end
+        
+        -- Destroy all ESP objects
+        for _, obj in pairs(ESPObjects) do
+            if obj.billboard then
+                obj.billboard:Destroy()
+            end
+        end
+        ESPObjects = {}
+        ShowNotif("❌ ESP Name disabled", 2)
+    end
+end
+
+local function ToggleESPHighlight()
+    ESPHighlightSettings.Enabled = not ESPHighlightSettings.Enabled
+    local highlightObjects = {}
+    
+    if ESPHighlightSettings.Enabled then
+        -- Create for existing players
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= Player then
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = AccentColor
+                highlight.OutlineColor = Color3.new(1,1,1)
+                highlight.OutlineTransparency = 0.5
+                highlight.FillTransparency = 0.7
+                highlight.Parent = ScreenGui
+                highlightObjects[plr] = highlight
+                
+                spawn(function()
+                    while ESPHighlightSettings.Enabled and Players:FindFirstChild(plr.Name) do
+                        local char = plr.Character
+                        if char then
+                            highlight.Adornee = char
+                        end
+                        wait(1)
+                    end
+                    highlight:Destroy()
+                    highlightObjects[plr] = nil
+                end)
+            end
+        end
+        
+        -- Listen for new players
+        ESPConnection = Players.PlayerAdded:Connect(function(newPlayer)
+            if ESPHighlightSettings.Enabled and newPlayer ~= Player then
+                wait(1)
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = AccentColor
+                highlight.OutlineColor = Color3.new(1,1,1)
+                highlight.OutlineTransparency = 0.5
+                highlight.FillTransparency = 0.7
+                highlight.Parent = ScreenGui
+                
+                spawn(function()
+                    while ESPHighlightSettings.Enabled and Players:FindFirstChild(newPlayer.Name) do
+                        local char = newPlayer.Character
+                        if char then
+                            highlight.Adornee = char
+                        end
+                        wait(1)
+                    end
+                    highlight:Destroy()
+                end)
+            end
+        end)
+        
+        ShowNotif("✅ ESP Highlight enabled", 2)
+    else
+        -- Disconnect listener
+        if ESPConnection then
+            ESPConnection:Disconnect()
+            ESPConnection = nil
+        end
+        
+        -- Destroy all highlights
+        for _, obj in pairs(highlightObjects) do
+            if obj then
+                obj:Destroy()
+            end
+        end
+        ShowNotif("❌ ESP Highlight disabled", 2)
+    end
+end
+
+-- ต่อด้วยการสร้าง Header...
+
+
 -- Header
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 60)
