@@ -1,8 +1,8 @@
---============== Fierce Executor v1.5.3 (Part 1/3 - Core) ===============
+--============== Fierce Executor v1.5.4 (Part 1/2 - Core) ===============
 -- คำเตือน: ใช้เพื่อการศึกษาเท่านั้น การใช้งานอาจฝ่าฝืน ToS ของ Roblox
 -- ผู้เขียนไม่รับประกันความปลอดภัย
--- พาร์ท 1: ตั้งค่าพื้นฐาน + GUI Framework
---=========================================================================
+-- พาร์ท 1: Core + Player Controls (Noclip Removed)
+--==========================================================================
 
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
@@ -113,14 +113,12 @@ local function ShowNotif(text, duration)
 end
 
 -- Global Variables
-local WalkSpeedValue = 50
-local JumpPowerValue = 50
-local NoclipEnabled = false
-local NoclipConnection = nil
-local ESPHighlightSettings = {Enabled = false}
-local ESPNameSettings = {Enabled = false, ShowName = true, ShowDistance = true, ShowHealth = true, TextSize = 10, Range = 500}
-local ESPConnection = nil
-local ESPObjects = {}
+WalkSpeedValue = 50
+JumpPowerValue = 50
+ESPHighlightSettings = {Enabled = false}
+ESPNameSettings = {Enabled = false, ShowName = true, ShowDistance = true, ShowHealth = true, TextSize = 10, Range = 500}
+ESPConnection = nil
+ESPObjects = {}
 
 -- Utility Functions
 local function GetCharacter()
@@ -170,12 +168,9 @@ end
 
 LoadConfig()
 
--- ========== ESP SYSTEMS (เพิ่มตรงนี้) ==========
-local ESPHighlightSettings = {Enabled = false}
-local ESPNameSettings = {Enabled = false, ShowName = true, ShowDistance = true, ShowHealth = true, TextSize = 10, Range = 500}
-local ESPConnection = nil
-local ESPObjects = {}
+-- ========== NOCLIP REMOVED ==========
 
+-- ========== ESP SYSTEMS ==========
 local function CreateESPName(targetPlayer)
     if ESPObjects[targetPlayer] then return end
     
@@ -371,9 +366,6 @@ local function ToggleESPHighlight()
     end
 end
 
--- ต่อด้วยการสร้าง Header...
-
-
 -- Header
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 60)
@@ -532,7 +524,15 @@ local MinIconCorner = Instance.new("UICorner")
 MinIconCorner.CornerRadius = UDim.new(0, 10)
 MinIconCorner.Parent = MinimizedIcon
 
--- Hover Effect Function
+-- Global State
+isMinimized = false
+isLarge = false
+dragging = false
+dragInput = nil
+dragStart = nil
+startPos = nil
+
+-- Hover Effect Function (Enhanced)
 local function AddHover(btn)
     btn.MouseEnter:Connect(function()
         TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.4}):Play()
@@ -548,109 +548,7 @@ AddHover(MaximizeButton)
 AddHover(MinimizeButton)
 AddHover(CloseButton)
 
--- State Variables
-local isMinimized = false
-local isLarge = false
-local dragging = false
-local dragInput, dragStart, startPos
-
--- PART 1 END - ต่อด้วย Part 2
---============== Fierce Executor v1.5.3 (Part 2/3 - Tabs Content) ===============
--- พาร์ท 2: Tab Switching + Content ของแต่ละ Tab (Controls, Hub, Visuals, Info)
---==================================================================================
-
--- GUI State Functions
-local function ToggleSize()
-    if isMinimized then return end
-    isLarge = not isLarge
-    local targetSize = isLarge and LargeSize or NormalSize
-    local targetPos = isLarge and LargePos or NormalPos
-    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = targetSize, Position = targetPos}):Play()
-end
-
-local function Minimize()
-    if isMinimized then return end
-    isMinimized = true
-    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
-    task.delay(0.35, function()
-        MainFrame.Visible = false
-        MinimizedIcon.Visible = true
-        MinimizedIcon.Size = UDim2.new(0, 0, 0, 0)
-        TweenService:Create(MinimizedIcon, TweenInfoBounce, {Size = UDim2.new(0, 50, 0, 50)}):Play()
-    end)
-end
-
-local function MaximizeFromMin()
-    if not isMinimized then return end
-    isMinimized = false
-    TweenService:Create(MinimizedIcon, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
-    task.delay(0.35, function()
-        MinimizedIcon.Visible = false
-        MainFrame.Visible = true
-        local targetSize = isLarge and LargeSize or NormalSize
-        local targetPos = isLarge and LargePos or NormalPos
-        TweenService:Create(MainFrame, TweenInfoBounce, {Size = targetSize, Position = targetPos}):Play()
-    end)
-end
-
-MaximizeButton.MouseButton1Click:Connect(ToggleSize)
-MinimizeButton.MouseButton1Click:Connect(Minimize)
-MinimizedIcon.MouseButton1Click:Connect(MaximizeFromMin)
-
-CloseButton.MouseButton1Click:Connect(function()
-    SaveConfig()
-    ShowNotif("💀 GUI closing...", 1)
-    TweenService:Create(MainFrame, TweenInfoSmooth, {BackgroundTransparency = 1}):Play()
-    task.wait(0.35)
-    ScreenGui:Destroy()
-end)
-
--- Dragging System
-local function updateInput(input)
-    local delta = input.Position - dragStart
-    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-Header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-    end
-end)
-
-Header.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        updateInput(input)
-    end
-end)
-
-Header.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
--- Tab Switching
-for i, btn in ipairs(TabButtons) do
-    btn.MouseButton1Click:Connect(function()
-        if CurrentTab == i then return end
-        TabContents[CurrentTab].Visible = false
-        CurrentTab = i
-        TabContents[i].Visible = true
-        for j, button in ipairs(TabButtons) do
-            TweenService:Create(button, TweenInfoSmooth, {TextColor3 = (j == i and AccentColor or Color3.new(1,1,1))}):Play()
-        end
-    end)
-end
-
--- ========== TAB 1: PLAYER CONTROLS ==========
+-- ========== BEGIN TAB 1: PLAYER CONTROLS ==========
 local Tab1 = TabContents[1]
 
 local Tab1Title = Instance.new("TextLabel")
@@ -779,36 +677,7 @@ ApplyBtnStroke.Parent = ApplyBtn
 ApplyBtn.MouseButton1Click:Connect(ApplyMovementMods)
 AddHover(ApplyBtn)
 
--- Noclip Toggle
-local NoclipToggle = Instance.new("TextButton")
-NoclipToggle.Size = UDim2.new(0, 120, 0, 35)
-NoclipToggle.Position = UDim2.new(0, 160, 0, 170)
-NoclipToggle.BackgroundColor3 = DarkColor
-NoclipToggle.BackgroundTransparency = 0.6
-NoclipToggle.Text = NoclipEnabled and "NOCLIP: ON" or "NOCLIP: OFF"
-NoclipToggle.TextColor3 = Color3.new(1,1,1)
-NoclipToggle.TextSize = 14
-NoclipToggle.Font = Enum.Font.GothamBold
-NoclipToggle.Parent = Tab1
-
-local NoclipCorner = Instance.new("UICorner")
-NoclipCorner.CornerRadius = UDim.new(0, 6)
-NoclipCorner.Parent = NoclipToggle
-
-local NoclipStroke = Instance.new("UIStroke")
-NoclipStroke.Color = AccentColor
-NoclipStroke.Thickness = 1
-NoclipStroke.Transparency = 0.7
-NoclipStroke.Parent = NoclipToggle
-
-NoclipToggle.MouseButton1Click:Connect(function()
-    ToggleNoclip()
-    NoclipToggle.Text = NoclipEnabled and "NOCLIP: ON" or "NOCLIP: OFF"
-    TweenService:Create(NoclipToggle, TweenInfoSmooth, {BackgroundTransparency = NoclipEnabled and 0.3 or 0.6}):Play()
-end)
-AddHover(NoclipToggle)
-
--- ESP Section
+-- ESP Section (Noclip Removed)
 local ESPSection = Instance.new("Frame")
 ESPSection.Size = UDim2.new(1, -30, 0, 80)
 ESPSection.Position = UDim2.new(0, 15, 0, 220)
@@ -838,7 +707,7 @@ ESPSectionTitle.Font = Enum.Font.GothamBold
 ESPSectionTitle.TextXAlignment = Enum.TextXAlignment.Left
 ESPSectionTitle.Parent = ESPSection
 
--- ESP Name Button (Enhanced Style)
+-- ESP Name Button
 local ESPToggle = Instance.new("TextButton")
 ESPToggle.Size = UDim2.new(0, 130, 0, 45)
 ESPToggle.Position = UDim2.new(0, 10, 0, 30)
@@ -861,12 +730,12 @@ ESPStroke.Transparency = 0.6
 ESPStroke.Parent = ESPToggle
 
 ESPToggle.MouseButton1Click:Connect(function()
-    ToggleESPName()
+    ToggleESPName() -- เรียกจากฟังก์ชันใน Part 1
     ESPToggle.Text = ESPNameSettings.Enabled and "👁️ NAME: ON" or "👁️ NAME: OFF"
     TweenService:Create(ESPToggle, TweenInfoSmooth, {BackgroundTransparency = ESPNameSettings.Enabled and 0.3 or 0.6}):Play()
 end)
 
--- ESP Highlight Button (Enhanced Style)
+-- ESP Highlight Button
 local HighlightToggle = Instance.new("TextButton")
 HighlightToggle.Size = UDim2.new(0, 130, 0, 45)
 HighlightToggle.Position = UDim2.new(0, 150, 0, 30)
@@ -889,7 +758,7 @@ HighlightStroke.Transparency = 0.6
 HighlightStroke.Parent = HighlightToggle
 
 HighlightToggle.MouseButton1Click:Connect(function()
-    ToggleESPHighlight()
+    ToggleESPHighlight() -- เรียกจากฟังก์ชันใน Part 1
     HighlightToggle.Text = ESPHighlightSettings.Enabled and "✨ HIGHLIGHT: ON" or "✨ HIGHLIGHT: OFF"
     TweenService:Create(HighlightToggle, TweenInfoSmooth, {BackgroundTransparency = ESPHighlightSettings.Enabled and 0.3 or 0.6}):Play()
 end)
@@ -911,7 +780,14 @@ end
 AddHoverEnhanced(ESPToggle)
 AddHoverEnhanced(HighlightToggle)
 
--- ========== TAB 2: SCRIPT HUB (Scrolling) ==========
+-- ========== END PART 1 - Copy Part 2 Below ==========
+print("Fierce Executor v1.5.4 Part 1 Loaded")
+--============== Fierce Executor v1.5.4 (Part 2/2 - Tabs) ===============
+-- พาร์ท 2: Script Hub, Visuals, Info + Initialization
+-- ต่อจาก Part 1 โดยตรง (ไม่ต้องเว้นบรรทัด)
+--=======================================================================
+
+-- ========== TAB 2: SCRIPT HUB ==========
 local Tab2 = TabContents[2]
 
 local Tab2Title = Instance.new("TextLabel")
@@ -1057,12 +933,6 @@ for i, scriptData in ipairs(ScriptHub) do
     CreateScriptButton(scriptData, i)
 end
 
--- ========== TAB 3: VISUALS & TAB 4: INFO จะอยู่ใน Part 3 ==========
--- PART 2 END - ต่อด้วย Part 3
---============== Fierce Executor v1.5.3 (Part 3/3 - Visuals & Info) ===============
--- พาร์ท 3: Tab Visuals, Tab Info, และการเริ่มต้นทำงาน
---==================================================================================
-
 -- ========== TAB 3: PLAYER VISUALS ==========
 local Tab3 = TabContents[3]
 
@@ -1077,7 +947,6 @@ Tab3Title.Font = Enum.Font.GothamBold
 Tab3Title.TextXAlignment = Enum.TextXAlignment.Left
 Tab3Title.Parent = Tab3
 
--- FOV Changer
 local FOVValue = 70
 local FOVToggle = Instance.new("TextButton")
 FOVToggle.Size = UDim2.new(0, 120, 0, 35)
@@ -1109,7 +978,6 @@ FOVToggle.MouseButton1Click:Connect(function()
 end)
 AddHover(FOVToggle)
 
--- Fullbright
 local FullbrightEnabled = false
 local FullbrightToggle = Instance.new("TextButton")
 FullbrightToggle.Size = UDim2.new(0, 120, 0, 35)
@@ -1153,7 +1021,6 @@ FullbrightToggle.MouseButton1Click:Connect(function()
 end)
 AddHover(FullbrightToggle)
 
--- No Fog
 local NoFogEnabled = false
 local NoFogToggle = Instance.new("TextButton")
 NoFogToggle.Size = UDim2.new(0, 120, 0, 35)
@@ -1193,7 +1060,6 @@ NoFogToggle.MouseButton1Click:Connect(function()
 end)
 AddHover(NoFogToggle)
 
--- Crosshair
 local CrosshairEnabled = false
 local CrosshairObj
 local CrosshairToggle = Instance.new("TextButton")
@@ -1272,7 +1138,7 @@ local UpdateList = Instance.new("TextLabel")
 UpdateList.Size = UDim2.new(1, -20, 1, -60)
 UpdateList.Position = UDim2.new(0, 10, 0, 50)
 UpdateList.BackgroundTransparency = 1
-UpdateList.Text = "🗓️ Last Updated: 2026-01-05 (v1.5.3)\n\n📦 Version: 1.5.3 (Stable Release)\n\n✨ Latest Features:\n• ESP separated (Name & Highlight)\n• 10 Hub Scripts with Key Status\n• 4 Visuals Features (FOV, Fullbright, NoFog, Crosshair)\n• Scrolling Script Hub\n• Enhanced UI/UX\n• Mobile Touch Support\n\n🔧 Universal Script\nใช้ได้กับทุกเกมใน Roblox\n\n⚡ Performance Optimized\nไม่แลค ไม่กิน FPS\n\n💀 Developer: Fierce Team"
+UpdateList.Text = "🗓️ Last Updated: 2026-01-05 (v1.5.4)\n\n📦 Version: 1.5.4 (Noclip Removed)\n\n✨ Latest Features:\n• ESP separated (Name & Highlight)\n• 10 Hub Scripts with Key Status\n• 4 Visuals Features (FOV, Fullbright, NoFog, Crosshair)\n• Scrolling Script Hub\n• Enhanced UI/UX\n• Mobile Touch Support\n\n🔧 Universal Script\nใช้ได้กับทุกเกมใน Roblox\n\n⚡ Performance Optimized\nไม่แลค ไม่กิน FPS\n\n💀 Developer: Fierce Team"
 UpdateList.TextColor3 = Color3.new(0.9,0.9,0.9)
 UpdateList.TextSize = 14
 UpdateList.Font = Enum.Font.Gotham
@@ -1282,7 +1148,7 @@ UpdateList.Parent = Tab4
 
 -- ========== FINAL INITIALIZATION ==========
 
--- Tab Switching Logic (รวมกับ Part 1 & 2)
+-- Tab Switching Logic
 for i, btn in ipairs(TabButtons) do
     btn.MouseButton1Click:Connect(function()
         if CurrentTab == i then return end
@@ -1303,26 +1169,80 @@ for i, btn in ipairs(TabButtons) do
     end)
 end
 
--- Initialize Game Detection
-local CurrentGame = "Unknown"
-spawn(function()
-    local placeId = game.PlaceId
-    local supportedGames = {
-        [2753915549] = "Blox Fruits", [4442272183] = "Blox Fruits", [7449423635] = "Blox Fruits",
-        [6284583030] = "Pet Simulator X", [10321372166] = "Pet Simulator X",
-        [286090429] = "Arsenal"
-    }
-    CurrentGame = supportedGames[placeId] or "Unknown"
-    if CurrentGame ~= "Unknown" then
-        ShowNotif("🎮 " .. CurrentGame .. " detected!", 3)
+-- Dragging System
+local dragging = false
+local dragInput, dragStart, startPos
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
     end
 end)
 
--- Final Notification
-ShowNotif("💀 Fierce Executor v1.5.3 loaded!", 3)
-ShowNotif("✅ All systems stable", 3)
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
 
-print("Fierce Executor v1.5.3 - 3 Part Loaded Successfully")
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+Header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Size Toggle & Minimize/Maximize
+local isMinimized = false
+local isLarge = false
+
+MaximizeButton.MouseButton1Click:Connect(function()
+    if isMinimized then return end
+    isLarge = not isLarge
+    local targetSize = isLarge and LargeSize or NormalSize
+    local targetPos = isLarge and LargePos or NormalPos
+    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = targetSize, Position = targetPos}):Play()
+end)
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    if isMinimized then return end
+    isMinimized = true
+    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
+    task.delay(0.35, function()
+        MainFrame.Visible = false
+        MinimizedIcon.Visible = true
+        MinimizedIcon.Size = UDim2.new(0, 0, 0, 0)
+        TweenService:Create(MinimizedIcon, TweenInfoBounce, {Size = UDim2.new(0, 50, 0, 50)}):Play()
+    end)
+end)
+
+MinimizedIcon.MouseButton1Click:Connect(function()
+    if not isMinimized then return end
+    isMinimized = false
+    TweenService:Create(MinimizedIcon, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
+    task.delay(0.35, function()
+        MinimizedIcon.Visible = false
+        MainFrame.Visible = true
+        local targetSize = isLarge and LargeSize or NormalSize
+        local targetPos = isLarge and LargePos or NormalPos
+        TweenService:Create(MainFrame, TweenInfoBounce, {Size = targetSize, Position = targetPos}):Play()
+    end)
+end)
+
+-- Final Notification
+ShowNotif("💀 Fierce Executor v1.5.4 loaded!", 3)
+ShowNotif("✅ Noclip removed, ESP fixed", 3)
+
+print("Fierce Executor v1.5.4 - 2 Parts Loaded Successfully")
 print("✅ GUI Ready | ✅ ESP Ready | ✅ Hub Ready | ✅ Visuals Ready")
 
--- SCRIPT END - รวมทั้ง 3 Part เข้าด้วยกัน
+-- ========== END OF PART 2 ==========
+
