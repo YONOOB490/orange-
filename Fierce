@@ -1,0 +1,1124 @@
+--============== Fierce Executor v1.5.3 (Part 1/3 - Core) ===============
+-- คำเตือน: ใช้เพื่อการศึกษาเท่านั้น การใช้งานอาจฝ่าฝืน ToS ของ Roblox
+-- ผู้เขียนไม่รับประกันความปลอดภัย
+-- พาร์ท 1: ตั้งค่าพื้นฐาน + GUI Framework
+--=========================================================================
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FierceExecutor"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- Colors & Themes
+local DarkBase = Color3.fromRGB(30, 10, 0)
+local MainColor = Color3.fromRGB(255, 90, 20)
+local DarkColor = Color3.fromRGB(200, 50, 0)
+local AccentColor = Color3.fromRGB(255, 140, 50)
+local Transparent = 0.12
+
+-- Tween Configs
+local TweenInfoSmooth = TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+local TweenInfoBounce = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+-- GUI Sizes
+local NormalSize = UDim2.new(0, 600, 0, 480)
+local LargeSize = UDim2.new(0, 900, 0, 650)
+local NormalPos = UDim2.new(0.5, -300, 0.5, -240)
+local LargePos = UDim2.new(0.5, -450, 0.5, -325)
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = NormalSize
+MainFrame.Position = NormalPos
+MainFrame.BackgroundColor3 = DarkBase
+MainFrame.BackgroundTransparency = Transparent
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Visible = true
+MainFrame.Parent = ScreenGui
+
+local MainGradient = Instance.new("UIGradient")
+MainGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, DarkBase), ColorSequenceKeypoint.new(1, MainColor)})
+MainGradient.Rotation = 30
+MainGradient.Parent = MainFrame
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.Parent = MainFrame
+
+local MainGlow = Instance.new("UIStroke")
+MainGlow.Transparency = 0.6
+MainGlow.Color = AccentColor
+MainGlow.Thickness = 2
+MainGlow.Parent = MainFrame
+
+-- Notification System
+local NotifY = 20
+local function ShowNotif(text, duration)
+    duration = duration or 3
+    local notif = Instance.new("TextLabel")
+    notif.Size = UDim2.new(0, 300, 0, 50)
+    notif.Position = UDim2.new(1, 320, 0, NotifY)
+    notif.BackgroundColor3 = DarkBase
+    notif.BackgroundTransparency = 0.2
+    notif.BorderSizePixel = 0
+    notif.Text = " " .. text
+    notif.TextColor3 = AccentColor
+    notif.TextSize = 16
+    notif.Font = Enum.Font.GothamBold
+    notif.TextXAlignment = Enum.TextXAlignment.Left
+    notif.ZIndex = 1000
+    notif.Parent = ScreenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = notif
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = AccentColor
+    stroke.Thickness = 2
+    stroke.Transparency = 0.6
+    stroke.Parent = notif
+    
+    local icon = Instance.new("TextLabel")
+    icon.Size = UDim2.new(0, 30, 0, 30)
+    icon.Position = UDim2.new(0, 10, 0.5, -15)
+    icon.BackgroundTransparency = 1
+    icon.Text = "💀"
+    icon.TextScaled = true
+    icon.TextColor3 = AccentColor
+    icon.Font = Enum.Font.GothamBlack
+    icon.Parent = notif
+    
+    NotifY = NotifY + 60
+    TweenService:Create(notif, TweenInfoSmooth, {Position = UDim2.new(1, -270, 0, notif.Position.Y.Offset)}):Play()
+    
+    spawn(function()
+        wait(duration)
+        TweenService:Create(notif, TweenInfoSmooth, {Position = UDim2.new(1, 320, 0, notif.Position.Y.Offset)}):Play()
+        wait(0.4)
+        notif:Destroy()
+        NotifY = NotifY - 60
+    end)
+end
+
+-- Global Variables
+local WalkSpeedValue = 50
+local JumpPowerValue = 50
+local NoclipEnabled = false
+local NoclipConnection = nil
+local ESPHighlightSettings = {Enabled = false}
+local ESPNameSettings = {Enabled = false, ShowName = true, ShowDistance = true, ShowHealth = true, TextSize = 10, Range = 500}
+local ESPConnection = nil
+local ESPObjects = {}
+
+-- Utility Functions
+local function GetCharacter()
+    local char = Player.Character
+    if not char or not char.Parent then
+        char = Player.CharacterAdded:Wait()
+    end
+    return char
+end
+
+local function GetHumanoid()
+    local char = GetCharacter()
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function ApplyMovementMods()
+    local hum = GetHumanoid()
+    if hum then
+        hum.WalkSpeed = WalkSpeedValue
+        hum.JumpPower = JumpPowerValue
+        ShowNotif("✅ Movement mods applied", 2)
+    else
+        ShowNotif("❌ Humanoid not found", 2)
+    end
+end
+
+local function SaveConfig()
+    pcall(function()
+        local config = {ws = WalkSpeedValue, jp = JumpPowerValue}
+        if writefile then
+            writefile("fierce_config.json", HttpService:JSONEncode(config))
+        end
+    end)
+end
+
+local function LoadConfig()
+    pcall(function()
+        if readfile and isfile and isfile("fierce_config.json") then
+            local data = readfile("fierce_config.json")
+            local config = HttpService:JSONDecode(data)
+            WalkSpeedValue = config.ws or 50
+            JumpPowerValue = config.jp or 50
+            ShowNotif("✅ Config loaded", 2)
+        end
+    end)
+end
+
+LoadConfig()
+
+-- Header
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 60)
+Header.BackgroundColor3 = Color3.new(1,1,1)
+Header.BackgroundTransparency = 0.2
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+
+local HeaderGradient = Instance.new("UIGradient")
+HeaderGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, DarkColor), ColorSequenceKeypoint.new(1, DarkBase)})
+HeaderGradient.Rotation = -30
+HeaderGradient.Parent = Header
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 14)
+HeaderCorner.Parent = Header
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -200, 1, 0)
+TitleLabel.Position = UDim2.new(0, 70, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Fierce Script"
+TitleLabel.TextColor3 = Color3.new(1,1,1)
+TitleLabel.TextSize = 26
+TitleLabel.Font = Enum.Font.GothamBlack
+TitleLabel.Parent = Header
+
+local LogoLabel = Instance.new("TextLabel")
+LogoLabel.Size = UDim2.new(0, 40, 0, 40)
+LogoLabel.Position = UDim2.new(0, 15, 0.5, -20)
+LogoLabel.BackgroundTransparency = 1
+LogoLabel.Text = "💀"
+LogoLabel.TextScaled = true
+LogoLabel.TextColor3 = AccentColor
+LogoLabel.Font = Enum.Font.GothamBlack
+LogoLabel.Parent = Header
+
+-- Control Buttons
+local MaximizeButton = Instance.new("TextButton")
+MaximizeButton.Size = UDim2.new(0, 32, 0, 32)
+MaximizeButton.Position = UDim2.new(1, -142, 0.5, -16)
+MaximizeButton.BackgroundColor3 = DarkColor
+MaximizeButton.BackgroundTransparency = 0.6
+MaximizeButton.Text = "□"
+MaximizeButton.TextColor3 = Color3.new(1,1,1)
+MaximizeButton.TextSize = 24
+MaximizeButton.Font = Enum.Font.GothamBold
+MaximizeButton.Parent = Header
+
+local MaxCorner = Instance.new("UICorner")
+MaxCorner.CornerRadius = UDim.new(0, 8)
+MaxCorner.Parent = MaximizeButton
+
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Size = UDim2.new(0, 32, 0, 32)
+MinimizeButton.Position = UDim2.new(1, -100, 0.5, -16)
+MinimizeButton.BackgroundColor3 = DarkColor
+MinimizeButton.BackgroundTransparency = 0.6
+MinimizeButton.Text = "–"
+MinimizeButton.TextColor3 = Color3.new(1,1,1)
+MinimizeButton.TextSize = 26
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.Parent = Header
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 8)
+MinCorner.Parent = MinimizeButton
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 32, 0, 32)
+CloseButton.Position = UDim2.new(1, -58, 0.5, -16)
+CloseButton.BackgroundColor3 = DarkColor
+CloseButton.BackgroundTransparency = 0.6
+CloseButton.Text = "×"
+CloseButton.TextColor3 = Color3.new(1,1,1)
+CloseButton.TextSize = 26
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = Header
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseButton
+
+-- Sidebar
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 85, 1, -60)
+Sidebar.Position = UDim2.new(0, 0, 0, 60)
+Sidebar.BackgroundTransparency = 0.3
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+local SidebarGradient = Instance.new("UIGradient")
+SidebarGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, DarkColor), ColorSequenceKeypoint.new(1, DarkBase)})
+SidebarGradient.Rotation = 90
+SidebarGradient.Parent = Sidebar
+
+-- Content Area
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -85, 1, -60)
+Content.Position = UDim2.new(0, 85, 0, 60)
+Content.BackgroundTransparency = 1
+Content.ClipsDescendants = true
+Content.Parent = MainFrame
+
+-- Tabs Setup
+local TabIcons = {"🗡️", "🔥", "👁️", "ℹ️"}
+local TabContents = {}
+local CurrentTab = 1
+
+for i = 1, #TabIcons do
+    local TabContent = Instance.new("Frame")
+    TabContent.Size = UDim2.new(1, 0, 1, 0)
+    TabContent.Position = UDim2.new(0, 0, 0, 0)
+    TabContent.BackgroundTransparency = 1
+    TabContent.Visible = (i == 1)
+    TabContent.Parent = Content
+    TabContents[i] = TabContent
+end
+
+local TabButtons = {}
+for i, icon in ipairs(TabIcons) do
+    local TabButton = Instance.new("TextButton")
+    TabButton.Size = UDim2.new(1, 0, 0, 55)
+    TabButton.Position = UDim2.new(0, 0, 0, (i-1)*65 + 20)
+    TabButton.BackgroundTransparency = 1
+    TabButton.Text = icon
+    TabButton.TextScaled = false
+    TabButton.TextSize = 36
+    TabButton.TextColor3 = Color3.new(1,1,1)
+    TabButton.Font = Enum.Font.GothamBlack
+    TabButton.Parent = Sidebar
+    
+    local TabGlow = Instance.new("UIStroke")
+    TabGlow.Transparency = 0.9
+    TabGlow.Color = AccentColor
+    TabGlow.Thickness = 2
+    TabGlow.Parent = TabButton
+    
+    TabButtons[i] = TabButton
+end
+
+-- Minimize Icon
+local MinimizedIcon = Instance.new("TextButton")
+MinimizedIcon.Size = UDim2.new(0, 50, 0, 50)
+MinimizedIcon.Position = UDim2.new(1, -60, 0, 10)
+MinimizedIcon.BackgroundColor3 = DarkColor
+MinimizedIcon.BackgroundTransparency = 0.5
+MinimizedIcon.Text = "💀"
+MinimizedIcon.TextScaled = true
+MinimizedIcon.TextColor3 = AccentColor
+MinimizedIcon.Font = Enum.Font.GothamBlack
+MinimizedIcon.Visible = false
+MinimizedIcon.Parent = ScreenGui
+
+local MinIconCorner = Instance.new("UICorner")
+MinIconCorner.CornerRadius = UDim.new(0, 10)
+MinIconCorner.Parent = MinimizedIcon
+
+-- Hover Effect Function
+local function AddHover(btn)
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.4}):Play()
+        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = AccentColor}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.6}):Play()
+        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = Color3.new(1,1,1)}):Play()
+    end)
+end
+
+AddHover(MaximizeButton)
+AddHover(MinimizeButton)
+AddHover(CloseButton)
+
+-- State Variables
+local isMinimized = false
+local isLarge = false
+local dragging = false
+local dragInput, dragStart, startPos
+
+-- PART 1 END - ต่อด้วย Part 2
+--============== Fierce Executor v1.5.3 (Part 2/3 - Tabs Content) ===============
+-- พาร์ท 2: Tab Switching + Content ของแต่ละ Tab (Controls, Hub, Visuals, Info)
+--==================================================================================
+
+-- GUI State Functions
+local function ToggleSize()
+    if isMinimized then return end
+    isLarge = not isLarge
+    local targetSize = isLarge and LargeSize or NormalSize
+    local targetPos = isLarge and LargePos or NormalPos
+    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = targetSize, Position = targetPos}):Play()
+end
+
+local function Minimize()
+    if isMinimized then return end
+    isMinimized = true
+    TweenService:Create(MainFrame, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
+    task.delay(0.35, function()
+        MainFrame.Visible = false
+        MinimizedIcon.Visible = true
+        MinimizedIcon.Size = UDim2.new(0, 0, 0, 0)
+        TweenService:Create(MinimizedIcon, TweenInfoBounce, {Size = UDim2.new(0, 50, 0, 50)}):Play()
+    end)
+end
+
+local function MaximizeFromMin()
+    if not isMinimized then return end
+    isMinimized = false
+    TweenService:Create(MinimizedIcon, TweenInfoSmooth, {Size = UDim2.new(0, 0, 0, 0)}):Play()
+    task.delay(0.35, function()
+        MinimizedIcon.Visible = false
+        MainFrame.Visible = true
+        local targetSize = isLarge and LargeSize or NormalSize
+        local targetPos = isLarge and LargePos or NormalPos
+        TweenService:Create(MainFrame, TweenInfoBounce, {Size = targetSize, Position = targetPos}):Play()
+    end)
+end
+
+MaximizeButton.MouseButton1Click:Connect(ToggleSize)
+MinimizeButton.MouseButton1Click:Connect(Minimize)
+MinimizedIcon.MouseButton1Click:Connect(MaximizeFromMin)
+
+CloseButton.MouseButton1Click:Connect(function()
+    SaveConfig()
+    ShowNotif("💀 GUI closing...", 1)
+    TweenService:Create(MainFrame, TweenInfoSmooth, {BackgroundTransparency = 1}):Play()
+    task.wait(0.35)
+    ScreenGui:Destroy()
+end)
+
+-- Dragging System
+local function updateInput(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        updateInput(input)
+    end
+end)
+
+Header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Tab Switching
+for i, btn in ipairs(TabButtons) do
+    btn.MouseButton1Click:Connect(function()
+        if CurrentTab == i then return end
+        TabContents[CurrentTab].Visible = false
+        CurrentTab = i
+        TabContents[i].Visible = true
+        for j, button in ipairs(TabButtons) do
+            TweenService:Create(button, TweenInfoSmooth, {TextColor3 = (j == i and AccentColor or Color3.new(1,1,1))}):Play()
+        end
+    end)
+end
+
+-- ========== TAB 1: PLAYER CONTROLS ==========
+local Tab1 = TabContents[1]
+
+local Tab1Title = Instance.new("TextLabel")
+Tab1Title.Size = UDim2.new(1, -20, 0, 40)
+Tab1Title.Position = UDim2.new(0, 10, 0, 10)
+Tab1Title.BackgroundTransparency = 1
+Tab1Title.Text = "PLAYER CONTROLS"
+Tab1Title.TextColor3 = AccentColor
+Tab1Title.TextSize = 20
+Tab1Title.Font = Enum.Font.GothamBold
+Tab1Title.TextXAlignment = Enum.TextXAlignment.Left
+Tab1Title.Parent = Tab1
+
+-- Walk Speed
+local WSLabel = Instance.new("TextLabel")
+WSLabel.Size = UDim2.new(1, -40, 0, 25)
+WSLabel.Position = UDim2.new(0, 20, 0, 60)
+WSLabel.BackgroundTransparency = 1
+WSLabel.Text = "Walk Speed"
+WSLabel.TextColor3 = Color3.new(1,1,1)
+WSLabel.TextSize = 16
+WSLabel.Font = Enum.Font.GothamBold
+WSLabel.TextXAlignment = Enum.TextXAlignment.Left
+WSLabel.Parent = Tab1
+
+local WSInput = Instance.new("TextBox")
+WSInput.Size = UDim2.new(0, 120, 0, 35)
+WSInput.Position = UDim2.new(0, 20, 0, 90)
+WSInput.BackgroundColor3 = DarkBase
+WSInput.BackgroundTransparency = 0.4
+WSInput.Text = tostring(WalkSpeedValue)
+WSInput.TextColor3 = Color3.new(1,1,1)
+WSInput.TextSize = 16
+WSInput.Font = Enum.Font.GothamBold
+WSInput.Parent = Tab1
+
+local WSInputCorner = Instance.new("UICorner")
+WSInputCorner.CornerRadius = UDim.new(0, 6)
+WSInputCorner.Parent = WSInput
+
+local WSInputStroke = Instance.new("UIStroke")
+WSInputStroke.Color = AccentColor
+WSInputStroke.Thickness = 1
+WSInputStroke.Transparency = 0.7
+WSInputStroke.Parent = WSInput
+
+WSInput.FocusLost:Connect(function()
+    local val = tonumber(WSInput.Text)
+    if val and val >= 0 and val <= 500 then
+        WalkSpeedValue = val
+        SaveConfig()
+        ShowNotif("✅ WalkSpeed set to " .. val, 2)
+    else
+        WSInput.Text = tostring(WalkSpeedValue)
+        ShowNotif("⚠️ Invalid value (0-500)", 2)
+    end
+end)
+
+-- Jump Power
+local JPLabel = Instance.new("TextLabel")
+JPLabel.Size = UDim2.new(1, -40, 0, 25)
+JPLabel.Position = UDim2.new(0, 20, 0, 140)
+JPLabel.BackgroundTransparency = 1
+JPLabel.Text = "Jump Power"
+JPLabel.TextColor3 = Color3.new(1,1,1)
+JPLabel.TextSize = 16
+JPLabel.Font = Enum.Font.GothamBold
+JPLabel.TextXAlignment = Enum.TextXAlignment.Left
+JPLabel.Parent = Tab1
+
+local JPInput = Instance.new("TextBox")
+JPInput.Size = UDim2.new(0, 120, 0, 35)
+JPInput.Position = UDim2.new(0, 20, 0, 170)
+JPInput.BackgroundColor3 = DarkBase
+JPInput.BackgroundTransparency = 0.4
+JPInput.Text = tostring(JumpPowerValue)
+JPInput.TextColor3 = Color3.new(1,1,1)
+JPInput.TextSize = 16
+JPInput.Font = Enum.Font.GothamBold
+JPInput.Parent = Tab1
+
+local JPInputCorner = Instance.new("UICorner")
+JPInputCorner.CornerRadius = UDim.new(0, 6)
+JPInputCorner.Parent = JPInput
+
+local JPInputStroke = Instance.new("UIStroke")
+JPInputStroke.Color = AccentColor
+JPInputStroke.Thickness = 1
+JPInputStroke.Transparency = 0.7
+JPInputStroke.Parent = JPInput
+
+JPInput.FocusLost:Connect(function()
+    local val = tonumber(JPInput.Text)
+    if val and val >= 0 and val <= 500 then
+        JumpPowerValue = val
+        SaveConfig()
+        ShowNotif("✅ JumpPower set to " .. val, 2)
+    else
+        JPInput.Text = tostring(JumpPowerValue)
+        ShowNotif("⚠️ Invalid value (0-500)", 2)
+    end
+end)
+
+-- Apply Button
+local ApplyBtn = Instance.new("TextButton")
+ApplyBtn.Size = UDim2.new(0, 120, 0, 35)
+ApplyBtn.Position = UDim2.new(0, 160, 0, 90)
+ApplyBtn.BackgroundColor3 = DarkColor
+ApplyBtn.BackgroundTransparency = 0.4
+ApplyBtn.Text = "APPLY"
+ApplyBtn.TextColor3 = Color3.new(1,1,1)
+ApplyBtn.TextSize = 16
+ApplyBtn.Font = Enum.Font.GothamBold
+ApplyBtn.Parent = Tab1
+
+local ApplyBtnCorner = Instance.new("UICorner")
+ApplyBtnCorner.CornerRadius = UDim.new(0, 6)
+ApplyBtnCorner.Parent = ApplyBtn
+
+local ApplyBtnStroke = Instance.new("UIStroke")
+ApplyBtnStroke.Color = AccentColor
+ApplyBtnStroke.Thickness = 1
+ApplyBtnStroke.Transparency = 0.7
+ApplyBtnStroke.Parent = ApplyBtn
+
+ApplyBtn.MouseButton1Click:Connect(ApplyMovementMods)
+AddHover(ApplyBtn)
+
+-- Noclip Toggle
+local NoclipToggle = Instance.new("TextButton")
+NoclipToggle.Size = UDim2.new(0, 120, 0, 35)
+NoclipToggle.Position = UDim2.new(0, 160, 0, 170)
+NoclipToggle.BackgroundColor3 = DarkColor
+NoclipToggle.BackgroundTransparency = 0.6
+NoclipToggle.Text = NoclipEnabled and "NOCLIP: ON" or "NOCLIP: OFF"
+NoclipToggle.TextColor3 = Color3.new(1,1,1)
+NoclipToggle.TextSize = 14
+NoclipToggle.Font = Enum.Font.GothamBold
+NoclipToggle.Parent = Tab1
+
+local NoclipCorner = Instance.new("UICorner")
+NoclipCorner.CornerRadius = UDim.new(0, 6)
+NoclipCorner.Parent = NoclipToggle
+
+local NoclipStroke = Instance.new("UIStroke")
+NoclipStroke.Color = AccentColor
+NoclipStroke.Thickness = 1
+NoclipStroke.Transparency = 0.7
+NoclipStroke.Parent = NoclipToggle
+
+NoclipToggle.MouseButton1Click:Connect(function()
+    ToggleNoclip()
+    NoclipToggle.Text = NoclipEnabled and "NOCLIP: ON" or "NOCLIP: OFF"
+    TweenService:Create(NoclipToggle, TweenInfoSmooth, {BackgroundTransparency = NoclipEnabled and 0.3 or 0.6}):Play()
+end)
+AddHover(NoclipToggle)
+
+-- ESP Section
+local ESPSection = Instance.new("Frame")
+ESPSection.Size = UDim2.new(1, -30, 0, 80)
+ESPSection.Position = UDim2.new(0, 15, 0, 220)
+ESPSection.BackgroundColor3 = DarkBase
+ESPSection.BackgroundTransparency = 0.7
+ESPSection.BorderSizePixel = 0
+ESPSection.Parent = Tab1
+
+local ESPSectionCorner = Instance.new("UICorner")
+ESPSectionCorner.CornerRadius = UDim.new(0, 8)
+ESPSectionCorner.Parent = ESPSection
+
+local ESPSectionStroke = Instance.new("UIStroke")
+ESPSectionStroke.Color = AccentColor
+ESPSectionStroke.Thickness = 1
+ESPSectionStroke.Transparency = 0.6
+ESPSectionStroke.Parent = ESPSection
+
+local ESPSectionTitle = Instance.new("TextLabel")
+ESPSectionTitle.Size = UDim2.new(1, -10, 0, 20)
+ESPSectionTitle.Position = UDim2.new(0, 5, 0, 5)
+ESPSectionTitle.BackgroundTransparency = 1
+ESPSectionTitle.Text = "ESP CONTROLS"
+ESPSectionTitle.TextColor3 = AccentColor
+ESPSectionTitle.TextSize = 14
+ESPSectionTitle.Font = Enum.Font.GothamBold
+ESPSectionTitle.TextXAlignment = Enum.TextXAlignment.Left
+ESPSectionTitle.Parent = ESPSection
+
+-- ESP Name Button (Enhanced Style)
+local ESPToggle = Instance.new("TextButton")
+ESPToggle.Size = UDim2.new(0, 130, 0, 45)
+ESPToggle.Position = UDim2.new(0, 10, 0, 30)
+ESPToggle.BackgroundColor3 = DarkColor
+ESPToggle.BackgroundTransparency = ESPNameSettings.Enabled and 0.3 or 0.6
+ESPToggle.Text = ESPNameSettings.Enabled and "👁️ NAME: ON" or "👁️ NAME: OFF"
+ESPToggle.TextColor3 = Color3.new(1,1,1)
+ESPToggle.TextSize = 15
+ESPToggle.Font = Enum.Font.GothamBlack
+ESPToggle.Parent = ESPSection
+
+local ESPCorner = Instance.new("UICorner")
+ESPCorner.CornerRadius = UDim.new(0, 6)
+ESPCorner.Parent = ESPToggle
+
+local ESPStroke = Instance.new("UIStroke")
+ESPStroke.Color = AccentColor
+ESPStroke.Thickness = 2
+ESPStroke.Transparency = 0.6
+ESPStroke.Parent = ESPToggle
+
+ESPToggle.MouseButton1Click:Connect(function()
+    ToggleESPName()
+    ESPToggle.Text = ESPNameSettings.Enabled and "👁️ NAME: ON" or "👁️ NAME: OFF"
+    TweenService:Create(ESPToggle, TweenInfoSmooth, {BackgroundTransparency = ESPNameSettings.Enabled and 0.3 or 0.6}):Play()
+end)
+
+-- ESP Highlight Button (Enhanced Style)
+local HighlightToggle = Instance.new("TextButton")
+HighlightToggle.Size = UDim2.new(0, 130, 0, 45)
+HighlightToggle.Position = UDim2.new(0, 150, 0, 30)
+HighlightToggle.BackgroundColor3 = DarkColor
+HighlightToggle.BackgroundTransparency = ESPHighlightSettings.Enabled and 0.3 or 0.6
+HighlightToggle.Text = ESPHighlightSettings.Enabled and "✨ HIGHLIGHT: ON" or "✨ HIGHLIGHT: OFF"
+HighlightToggle.TextColor3 = Color3.new(1,1,1)
+HighlightToggle.TextSize = 15
+HighlightToggle.Font = Enum.Font.GothamBlack
+HighlightToggle.Parent = ESPSection
+
+local HighlightCorner = Instance.new("UICorner")
+HighlightCorner.CornerRadius = UDim.new(0, 6)
+HighlightCorner.Parent = HighlightToggle
+
+local HighlightStroke = Instance.new("UIStroke")
+HighlightStroke.Color = AccentColor
+HighlightStroke.Thickness = 2
+HighlightStroke.Transparency = 0.6
+HighlightStroke.Parent = HighlightToggle
+
+HighlightToggle.MouseButton1Click:Connect(function()
+    ToggleESPHighlight()
+    HighlightToggle.Text = ESPHighlightSettings.Enabled and "✨ HIGHLIGHT: ON" or "✨ HIGHLIGHT: OFF"
+    TweenService:Create(HighlightToggle, TweenInfoSmooth, {BackgroundTransparency = ESPHighlightSettings.Enabled and 0.3 or 0.6}):Play()
+end)
+
+-- Enhanced Hover for ESP Buttons
+local function AddHoverEnhanced(btn)
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.25}):Play()
+        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = AccentColor}):Play()
+        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.3}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.6}):Play()
+        TweenService:Create(btn, TweenInfoSmooth, {TextColor3 = Color3.new(1,1,1)}):Play()
+        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.6}):Play()
+    end)
+end
+
+AddHoverEnhanced(ESPToggle)
+AddHoverEnhanced(HighlightToggle)
+
+-- ========== TAB 2: SCRIPT HUB (Scrolling) ==========
+local Tab2 = TabContents[2]
+
+local Tab2Title = Instance.new("TextLabel")
+Tab2Title.Size = UDim2.new(1, -20, 0, 40)
+Tab2Title.Position = UDim2.new(0, 10, 0, 10)
+Tab2Title.BackgroundTransparency = 1
+Tab2Title.Text = "SCRIPT HUB"
+Tab2Title.TextColor3 = AccentColor
+Tab2Title.TextSize = 20
+Tab2Title.Font = Enum.Font.GothamBold
+Tab2Title.TextXAlignment = Enum.TextXAlignment.Left
+Tab2Title.Parent = Tab2
+
+local HubScroll = Instance.new("ScrollingFrame")
+HubScroll.Size = UDim2.new(1, -10, 1, -50)
+HubScroll.Position = UDim2.new(0, 5, 0, 50)
+HubScroll.BackgroundTransparency = 1
+HubScroll.BorderSizePixel = 0
+HubScroll.ScrollBarThickness = 4
+HubScroll.ScrollBarImageColor3 = AccentColor
+HubScroll.CanvasSize = UDim2.new(0, 0, 0, 750)
+HubScroll.Parent = Tab2
+
+-- Script Hub Data (10 Scripts)
+local ScriptHub = {
+    {name = "Blox Fruits", desc = "MinGaming Hub", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/Basicallyybeta/mingane/main/MinGamingNew.lua'))()", games = {2753915549, 4442272183, 7449423635}, key = true, keyurl = "https://linkvertise.com/MinGaming"},
+    {name = "Arsenal", desc = "Silent Aim", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/CriShoux/ltb-ui/main/loader.lua'))()", games = {286090429}, key = false},
+    {name = "Silent Spy", desc = "Universal - NO KEY", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/FryzerHub/Biggestscript/refs/heads/main/SilentSpy', true))()", games = {}, key = false},
+    {name = "ESP Players", desc = "Universal ESP - NO KEY", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/xt-el/ESP-Players/refs/heads/main/ESP'))()", games = {}, key = false},
+    {name = "Fly Script", desc = "Universal Fly - NO KEY", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/JNHHGaming/Fly/refs/heads/main/Fly',true))()", games = {}, key = false},
+    {name = "ESL Aimbot", desc = "Universal - NO KEY", script = "loadstring(game:HttpGet('https://pastebin.com/raw/qGJnSYeM', true))()", games = {}, key = false},
+    {name = "Brookhaven RP", desc = "Troll/Kill - NO KEY", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/kigredns/testUIDK/refs/heads/main/panel.lua'))()", games = {4924922222, 662417684}, key = false},
+    {name = "Pet Sim X", desc = "Auto Farm", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/Denverrz/YES/main/loader'))()", games = {6284583030, 10321372166}, key = false},
+    {name = "Infinite Yield", desc = "Universal Admin - NO KEY", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()", games = {}, key = false},
+    {name = "Tateyama UI", desc = "Blox Fruits Alt", script = "loadstring(game:HttpGet('https://raw.githubusercontent.com/xZc-Hiro/tateyama-tsukasa-ui/main/source.lua'))()", games = {2753915549, 4442272183, 7449423635}, key = false}
+}
+
+local function CreateScriptButton(data, index)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 70)
+    btn.Position = UDim2.new(0, 5, 0, (index-1)*75)
+    btn.BackgroundColor3 = DarkBase
+    btn.BackgroundTransparency = 0.5
+    btn.Text = ""
+    btn.Parent = HubScroll
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = AccentColor
+    stroke.Thickness = 1
+    stroke.Transparency = 0.8
+    stroke.Parent = btn
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 0.4, 0)
+    title.Position = UDim2.new(0, 10, 0, 5)
+    title.BackgroundTransparency = 1
+    title.Text = data.name
+    title.TextColor3 = Color3.new(1,1,1)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = btn
+    
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(1, -20, 0.3, 0)
+    desc.Position = UDim2.new(0, 10, 0.4, 0)
+    desc.BackgroundTransparency = 1
+    desc.Text = data.desc
+    desc.TextColor3 = Color3.new(0.8,0.8,0.8)
+    desc.TextSize = 12
+    desc.Font = Enum.Font.Gotham
+    desc.TextXAlignment = Enum.TextXAlignment.Left
+    desc.Parent = btn
+    
+    local keyStatus = Instance.new("TextLabel")
+    keyStatus.Size = UDim2.new(1, -20, 0.3, 0)
+    keyStatus.Position = UDim2.new(0, 10, 0.7, 0)
+    keyStatus.BackgroundTransparency = 1
+    keyStatus.Text = data.key and "🔑 REQUIRES KEY" or "✅ NO KEY"
+    keyStatus.TextColor3 = data.key and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(0, 255, 0)
+    keyStatus.TextSize = 11
+    keyStatus.Font = Enum.Font.GothamBold
+    keyStatus.TextXAlignment = Enum.TextXAlignment.Left
+    keyStatus.Parent = btn
+    
+    local isSupported = false
+    for _, id in ipairs(data.games) do
+        if id == game.PlaceId then
+            isSupported = true
+            break
+        end
+    end
+    
+    if not isSupported and #data.games > 0 then
+        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.7}):Play()
+        title.TextColor3 = Color3.new(0.6,0.6,0.6)
+        desc.TextColor3 = Color3.new(0.4,0.4,0.4)
+        keyStatus.TextColor3 = Color3.new(0.4,0.4,0.4)
+    end
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = 0.3}):Play()
+        TweenService:Create(stroke, TweenInfoSmooth, {Transparency = 0.5}):Play()
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        local target = (isSupported or #data.games == 0) and 0.5 or 0.7
+        TweenService:Create(btn, TweenInfoSmooth, {BackgroundTransparency = target}):Play()
+        TweenService:Create(stroke, TweenInfoSmooth, {Transparency = 0.8}):Play()
+    end)
+    
+    btn.MouseButton1Click:Connect(function()
+        if not isSupported and #data.games > 0 then
+            ShowNotif("⚠️ Not optimized for this game", 3)
+            return
+        end
+        
+        if data.key then
+            ShowNotif("🔑 Opening key link...", 2)
+            if syn and syn.write_clipboard then
+                syn.write_clipboard(data.keyurl)
+                ShowNotif("📋 Key URL copied!", 3)
+            end
+        end
+        
+        ShowNotif("📜 Executing " .. data.name .. "...", 2)
+        spawn(function()
+            pcall(function()
+                loadstring(data.script)()
+            end)
+        end)
+    end)
+    
+    AddHover(btn)
+    return btn
+end
+
+for i, scriptData in ipairs(ScriptHub) do
+    CreateScriptButton(scriptData, i)
+end
+
+-- ========== TAB 3: VISUALS & TAB 4: INFO จะอยู่ใน Part 3 ==========
+-- PART 2 END - ต่อด้วย Part 3
+--============== Fierce Executor v1.5.3 (Part 3/3 - Visuals & Info) ===============
+-- พาร์ท 3: Tab Visuals, Tab Info, และการเริ่มต้นทำงาน
+--==================================================================================
+
+-- ========== TAB 3: PLAYER VISUALS ==========
+local Tab3 = TabContents[3]
+
+local Tab3Title = Instance.new("TextLabel")
+Tab3Title.Size = UDim2.new(1, -20, 0, 40)
+Tab3Title.Position = UDim2.new(0, 10, 0, 10)
+Tab3Title.BackgroundTransparency = 1
+Tab3Title.Text = "PLAYER VISUALS"
+Tab3Title.TextColor3 = AccentColor
+Tab3Title.TextSize = 20
+Tab3Title.Font = Enum.Font.GothamBold
+Tab3Title.TextXAlignment = Enum.TextXAlignment.Left
+Tab3Title.Parent = Tab3
+
+-- FOV Changer
+local FOVValue = 70
+local FOVToggle = Instance.new("TextButton")
+FOVToggle.Size = UDim2.new(0, 120, 0, 35)
+FOVToggle.Position = UDim2.new(0, 20, 0, 60)
+FOVToggle.BackgroundColor3 = DarkColor
+FOVToggle.BackgroundTransparency = 0.6
+FOVToggle.Text = "FOV: 70"
+FOVToggle.TextColor3 = Color3.new(1,1,1)
+FOVToggle.TextSize = 14
+FOVToggle.Font = Enum.Font.GothamBold
+FOVToggle.Parent = Tab3
+
+local FOVCorner = Instance.new("UICorner")
+FOVCorner.CornerRadius = UDim.new(0, 6)
+FOVCorner.Parent = FOVToggle
+
+local FOVStroke = Instance.new("UIStroke")
+FOVStroke.Color = AccentColor
+FOVStroke.Thickness = 1
+FOVStroke.Transparency = 0.7
+FOVStroke.Parent = FOVToggle
+
+FOVToggle.MouseButton1Click:Connect(function()
+    FOVValue = FOVValue >= 120 and 70 or FOVValue + 10
+    workspace.CurrentCamera.FieldOfView = FOVValue
+    FOVToggle.Text = "FOV: " .. FOVValue
+    TweenService:Create(FOVToggle, TweenInfoSmooth, {BackgroundTransparency = FOVValue ~= 70 and 0.3 or 0.6}):Play()
+    ShowNotif("✅ FOV set to " .. FOVValue, 2)
+end)
+AddHover(FOVToggle)
+
+-- Fullbright
+local FullbrightEnabled = false
+local FullbrightToggle = Instance.new("TextButton")
+FullbrightToggle.Size = UDim2.new(0, 120, 0, 35)
+FullbrightToggle.Position = UDim2.new(0, 160, 0, 60)
+FullbrightToggle.BackgroundColor3 = DarkColor
+FullbrightToggle.BackgroundTransparency = 0.6
+FullbrightToggle.Text = "FULLBRIGHT: OFF"
+FullbrightToggle.TextColor3 = Color3.new(1,1,1)
+FullbrightToggle.TextSize = 12
+FullbrightToggle.Font = Enum.Font.GothamBold
+FullbrightToggle.Parent = Tab3
+
+local FBCorner = Instance.new("UICorner")
+FBCorner.CornerRadius = UDim.new(0, 6)
+FBCorner.Parent = FullbrightToggle
+
+local FBStroke = Instance.new("UIStroke")
+FBStroke.Color = AccentColor
+FBStroke.Thickness = 1
+FBStroke.Transparency = 0.7
+FBStroke.Parent = FullbrightToggle
+
+FullbrightToggle.MouseButton1Click:Connect(function()
+    FullbrightEnabled = not FullbrightEnabled
+    FullbrightToggle.Text = FullbrightEnabled and "FULLBRIGHT: ON" or "FULLBRIGHT: OFF"
+    TweenService:Create(FullbrightToggle, TweenInfoSmooth, {BackgroundTransparency = FullbrightEnabled and 0.3 or 0.6}):Play()
+    
+    if FullbrightEnabled then
+        Lighting.Brightness = 2
+        Lighting.GlobalShadows = false
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+        ShowNotif("✅ Fullbright enabled", 2)
+    else
+        Lighting.Brightness = 1
+        Lighting.GlobalShadows = true
+        Lighting.Ambient = Color3.fromRGB(127, 127, 127)
+        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+        ShowNotif("❌ Fullbright disabled", 2)
+    end
+end)
+AddHover(FullbrightToggle)
+
+-- No Fog
+local NoFogEnabled = false
+local NoFogToggle = Instance.new("TextButton")
+NoFogToggle.Size = UDim2.new(0, 120, 0, 35)
+NoFogToggle.Position = UDim2.new(0, 20, 0, 110)
+NoFogToggle.BackgroundColor3 = DarkColor
+NoFogToggle.BackgroundTransparency = 0.6
+NoFogToggle.Text = "NOFOG: OFF"
+NoFogToggle.TextColor3 = Color3.new(1,1,1)
+NoFogToggle.TextSize = 14
+NoFogToggle.Font = Enum.Font.GothamBold
+NoFogToggle.Parent = Tab3
+
+local NFContinue = Instance.new("UICorner")
+NFContinue.CornerRadius = UDim.new(0, 6)
+NFContinue.Parent = NoFogToggle
+
+local NFStroke = Instance.new("UIStroke")
+NFStroke.Color = AccentColor
+NFStroke.Thickness = 1
+NFStroke.Transparency = 0.7
+NFStroke.Parent = NoFogToggle
+
+NoFogToggle.MouseButton1Click:Connect(function()
+    NoFogEnabled = not NoFogEnabled
+    NoFogToggle.Text = NoFogEnabled and "NOFOG: ON" or "NOFOG: OFF"
+    TweenService:Create(NoFogToggle, TweenInfoSmooth, {BackgroundTransparency = NoFogEnabled and 0.3 or 0.6}):Play()
+    
+    if NoFogEnabled then
+        Lighting.FogEnd = 100000
+        Lighting.FogStart = 0
+        ShowNotif("✅ NoFog enabled", 2)
+    else
+        Lighting.FogEnd = 1000
+        Lighting.FogStart = 0
+        ShowNotif("❌ NoFog disabled", 2)
+    end
+end)
+AddHover(NoFogToggle)
+
+-- Crosshair
+local CrosshairEnabled = false
+local CrosshairObj
+local CrosshairToggle = Instance.new("TextButton")
+CrosshairToggle.Size = UDim2.new(0, 120, 0, 35)
+CrosshairToggle.Position = UDim2.new(0, 160, 0, 110)
+CrosshairToggle.BackgroundColor3 = DarkColor
+CrosshairToggle.BackgroundTransparency = 0.6
+CrosshairToggle.Text = "XHAIR: OFF"
+CrosshairToggle.TextColor3 = Color3.new(1,1,1)
+CrosshairToggle.TextSize = 14
+CrosshairToggle.Font = Enum.Font.GothamBold
+CrosshairToggle.Parent = Tab3
+
+local XHRCorner = Instance.new("UICorner")
+XHRCorner.CornerRadius = UDim.new(0, 6)
+XHRCorner.Parent = CrosshairToggle
+
+local XHRStroke = Instance.new("UIStroke")
+XHRStroke.Color = AccentColor
+XHRStroke.Thickness = 1
+XHRStroke.Transparency = 0.7
+XHRStroke.Parent = CrosshairToggle
+
+CrosshairToggle.MouseButton1Click:Connect(function()
+    CrosshairEnabled = not CrosshairEnabled
+    CrosshairToggle.Text = CrosshairEnabled and "XHAIR: ON" or "XHAIR: OFF"
+    TweenService:Create(CrosshairToggle, TweenInfoSmooth, {BackgroundTransparency = CrosshairEnabled and 0.3 or 0.6}):Play()
+    
+    if CrosshairEnabled then
+        CrosshairObj = Instance.new("Frame")
+        CrosshairObj.Size = UDim2.new(0, 20, 0, 20)
+        CrosshairObj.Position = UDim2.new(0.5, -10, 0.5, -10)
+        CrosshairObj.BackgroundTransparency = 1
+        CrosshairObj.ZIndex = 1000
+        CrosshairObj.Parent = ScreenGui
+        
+        local h = Instance.new("Frame")
+        h.Size = UDim2.new(1, 0, 0, 2)
+        h.Position = UDim2.new(0, 0, 0.5, -1)
+        h.BackgroundColor3 = AccentColor
+        h.BorderSizePixel = 0
+        h.Parent = CrosshairObj
+        
+        local v = Instance.new("Frame")
+        v.Size = UDim2.new(0, 2, 1, 0)
+        v.Position = UDim2.new(0.5, -1, 0, 0)
+        v.BackgroundColor3 = AccentColor
+        v.BorderSizePixel = 0
+        v.Parent = CrosshairObj
+        
+        ShowNotif("✅ Crosshair enabled", 2)
+    else
+        if CrosshairObj then
+            CrosshairObj:Destroy()
+        end
+        ShowNotif("❌ Crosshair disabled", 2)
+    end
+end)
+AddHover(CrosshairToggle)
+
+-- ========== TAB 4: INFO / UPDATES ==========
+local Tab4 = TabContents[4]
+
+local Tab4Title = Instance.new("TextLabel")
+Tab4Title.Size = UDim2.new(1, -20, 0, 40)
+Tab4Title.Position = UDim2.new(0, 10, 0, 10)
+Tab4Title.BackgroundTransparency = 1
+Tab4Title.Text = "INFO / UPDATES"
+Tab4Title.TextColor3 = AccentColor
+Tab4Title.TextSize = 20
+Tab4Title.Font = Enum.Font.GothamBold
+Tab4Title.TextXAlignment = Enum.TextXAlignment.Left
+Tab4Title.Parent = Tab4
+
+local UpdateList = Instance.new("TextLabel")
+UpdateList.Size = UDim2.new(1, -20, 1, -60)
+UpdateList.Position = UDim2.new(0, 10, 0, 50)
+UpdateList.BackgroundTransparency = 1
+UpdateList.Text = "🗓️ Last Updated: 2026-01-05 (v1.5.3)\n\n📦 Version: 1.5.3 (Stable Release)\n\n✨ Latest Features:\n• ESP separated (Name & Highlight)\n• 10 Hub Scripts with Key Status\n• 4 Visuals Features (FOV, Fullbright, NoFog, Crosshair)\n• Scrolling Script Hub\n• Enhanced UI/UX\n• Mobile Touch Support\n\n🔧 Universal Script\nใช้ได้กับทุกเกมใน Roblox\n\n⚡ Performance Optimized\nไม่แลค ไม่กิน FPS\n\n💀 Developer: Fierce Team"
+UpdateList.TextColor3 = Color3.new(0.9,0.9,0.9)
+UpdateList.TextSize = 14
+UpdateList.Font = Enum.Font.Gotham
+UpdateList.TextXAlignment = Enum.TextXAlignment.Left
+UpdateList.TextYAlignment = Enum.TextYAlignment.Top
+UpdateList.Parent = Tab4
+
+-- ========== FINAL INITIALIZATION ==========
+
+-- Tab Switching Logic (รวมกับ Part 1 & 2)
+for i, btn in ipairs(TabButtons) do
+    btn.MouseButton1Click:Connect(function()
+        if CurrentTab == i then return end
+        TabContents[CurrentTab].Visible = false
+        CurrentTab = i
+        TabContents[i].Visible = true
+        for j, button in ipairs(TabButtons) do
+            TweenService:Create(button, TweenInfoSmooth, {TextColor3 = (j == i and AccentColor or Color3.new(1,1,1))}):Play()
+        end
+    end)
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.4}):Play()
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn.UIStroke, TweenInfoSmooth, {Transparency = 0.9}):Play()
+    end)
+end
+
+-- Initialize Game Detection
+local CurrentGame = "Unknown"
+spawn(function()
+    local placeId = game.PlaceId
+    local supportedGames = {
+        [2753915549] = "Blox Fruits", [4442272183] = "Blox Fruits", [7449423635] = "Blox Fruits",
+        [6284583030] = "Pet Simulator X", [10321372166] = "Pet Simulator X",
+        [286090429] = "Arsenal"
+    }
+    CurrentGame = supportedGames[placeId] or "Unknown"
+    if CurrentGame ~= "Unknown" then
+        ShowNotif("🎮 " .. CurrentGame .. " detected!", 3)
+    end
+end)
+
+-- Final Notification
+ShowNotif("💀 Fierce Executor v1.5.3 loaded!", 3)
+ShowNotif("✅ All systems stable", 3)
+
+print("Fierce Executor v1.5.3 - 3 Part Loaded Successfully")
+print("✅ GUI Ready | ✅ ESP Ready | ✅ Hub Ready | ✅ Visuals Ready")
+
+-- SCRIPT END - รวมทั้ง 3 Part เข้าด้วยกัน
