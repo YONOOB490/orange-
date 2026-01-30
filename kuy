@@ -3825,41 +3825,38 @@ end)
 
 print("[AntiBan] 🚀 Anti-Ban System Loaded (Fixed for Delta)")
 -- ==============================================
--- NOTIFICATION SYSTEM v1.0 - ระบบแจ้งเตือน Queue
--- วางโค้ดนี้ต่อท้ายไฟล์ของคุณ (หลัง AntiBan หรือส่วนสุดท้าย)
+-- SIMPLE NOTIFICATION - แจ้งเตือนแบบเรียบง่าย
+-- วางโค้ดนี้ต่อท้ายไฟล์
 -- ==============================================
 
-local NotificationSystem = {
+local SimpleNotify = {
     Enabled = true,
-    Queue = {},
-    IsProcessing = false,
     Gui = nil,
-    MainFrame = nil,
     Label = nil,
-    ToggleConnection = nil
+    Queue = {},
+    Processing = false
 }
 
--- สร้าง UI Notification
-function NotificationSystem:CreateUI()
-    -- ถ้าสร้างแล้วข้าม
-    if self.Gui and self.Gui.Parent then return end
+function SimpleNotify:Create()
+    if self.Gui then return end
     
+    local player = game:GetService("Players").LocalPlayer
     self.Gui = Instance.new("ScreenGui")
-    self.Gui.Name = "NotificationQueue"
+    self.Gui.Name = "SimpleNotify"
     self.Gui.ResetOnSpawn = false
-    self.Gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    self.Gui.Parent = player:WaitForChild("PlayerGui")
     
-    self.MainFrame = Instance.new("Frame")
-    self.MainFrame.Size = UDim2.new(0, 280, 0, 45)
-    self.MainFrame.Position = UDim2.new(1, 300, 0, 15) -- เริ่มจากนอกจอขวา
-    self.MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-    self.MainFrame.BorderSizePixel = 0
-    self.MainFrame.Parent = self.Gui
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 40)
+    frame.Position = UDim2.new(1, 320, 0, 20)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    frame.BorderSizePixel = 0
+    frame.Parent = self.Gui
     
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(80, 80, 140)
+    stroke.Color = Color3.fromRGB(100, 100, 170)
     stroke.Thickness = 1
-    stroke.Parent = self.MainFrame
+    stroke.Parent = frame
     
     self.Label = Instance.new("TextLabel")
     self.Label.Size = UDim2.new(1, -20, 1, -10)
@@ -3870,155 +3867,82 @@ function NotificationSystem:CreateUI()
     self.Label.Font = Enum.Font.GothamMedium
     self.Label.TextSize = 12
     self.Label.TextXAlignment = Enum.TextXAlignment.Left
-    self.Label.TextWrapped = true
-    self.Label.Parent = self.MainFrame
+    self.Label.Parent = frame
     
-    -- ปิดอัตโนมัติเมื่อ GUI หลักปิด
-    sg.Destroying:Connect(function()
-        if self.Gui then self.Gui:Destroy() end
-    end)
+    -- ปิดเมื่อ GUI หลักปิด
+    if sg then
+        sg.Destroying:Connect(function()
+            if self.Gui then self.Gui:Destroy() end
+        end)
+    end
 end
 
--- เพิ่มข้อความเข้า Queue
-function NotificationSystem:Add(message, duration)
+function SimpleNotify:Add(message, duration)
     if not self.Enabled then return end
     
     table.insert(self.Queue, {
-        message = tostring(message),
-        duration = duration or 3
+        msg = tostring(message),
+        time = duration or 3
     })
     
-    if not self.IsProcessing then
-        self:ProcessQueue()
+    if not self.Processing then
+        self.Processing = true
+        task.spawn(function() self:Process() end)
     end
 end
 
--- ประมวลผล Queue
-function NotificationSystem:ProcessQueue()
-    if #self.Queue == 0 then
-        self.IsProcessing = false
-        return
-    end
-    
-    self.IsProcessing = true
-    local data = table.remove(self.Queue, 1)
-    
-    -- แสดงข้อความ
-    self.Label.Text = data.message
-    
-    -- Animation เข้า
-    self.MainFrame:TweenPosition(
-        UDim2.new(1, -300, 0, 15),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.3,
-        true
-    )
-    
-    -- รอเวลา
-    task.delay(data.duration, function()
-        -- Animation ออก
-        self.MainFrame:TweenPosition(
-            UDim2.new(1, 300, 0, 15),
+function SimpleNotify:Process()
+    while #self.Queue > 0 do
+        local data = table.remove(self.Queue, 1)
+        self.Label.Text = data.msg
+        
+        -- เข้า
+        self.Gui.Frame:TweenPosition(
+            UDim2.new(1, -320, 0, 20),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.3,
+            true
+        )
+        
+        task.wait(data.time)
+        
+        -- ออก
+        self.Gui.Frame:TweenPosition(
+            UDim2.new(1, 320, 0, 20),
             Enum.EasingDirection.In,
             Enum.EasingStyle.Quad,
             0.3,
             true
         )
         
-        -- ดีเลย์ก่อนข้อความต่อไป
         task.wait(0.4)
-        self:ProcessQueue()
-    end)
-end
-
--- เปิด/ปิดระบบ
-function NotificationSystem:Toggle()
-    self.Enabled = not self.Enabled
-    
-    if self.Enabled then
-        print("[Notification] เปิดใช้งาน")
-        if self.Gui then self.Gui.Enabled = true end
-    else
-        print("[Notification] ปิดใช้งาน")
-        if self.Gui then self.Gui.Enabled = false end
     end
-    
-    return self.Enabled
+    self.Processing = false
 end
 
--- แทนที่ print() อัตโนมัติ
-local originalPrint = print
-function print(...)
+-- เริ่มทำงาน
+task.wait(1)
+SimpleNotify:Create()
+
+-- แทนที่ print แบบปลอดภัย
+local oldPrint = print
+_G.oldPrint = oldPrint
+
+print = function(...)
     local args = {...}
-    local message = table.concat(args, " ")
+    local msg = table.concat(args, " ")
     
-    -- ส่งไปยัง print เดิม (console)
-    originalPrint(...)
+    -- เรียก print เดิม
+    oldPrint(...)
     
-    -- ส่งไปยัง notification
-    if NotificationSystem.Enabled then
-        -- กรองข้อความที่ไม่ต้องการแจ้งเตือน
-        if not message:find("Hub v12.1 Loaded") and 
-           not message:find("AntiBan") and
-           message ~= "" then
-            NotificationSystem:Add(message, 2.5)
-        end
+    -- ส่งไปแจ้งเตือน (เลือกเฉพาะ)
+    if SimpleNotify.Enabled and msg and 
+       not msg:find("Hub v12.1") and 
+       not msg:find("AntiBan") and
+       not msg:find("SimpleNotify") then
+        SimpleNotify:Add(msg, 2)
     end
 end
 
--- เริ่มระบบอัตโนมัติ
-task.spawn(function()
-    task.wait(1) -- รอ GUI โหลดเสร็จ
-    NotificationSystem:CreateUI()
-end)
-
--- ==============================================
--- เพิ่มปุ่มใน Settings Tab
--- ==============================================
-
--- หา SettingsPage ที่มีอยู่แล้ว
-local SettingsPage = nil
-for _, child in ipairs(Main:GetDescendants()) do
-    if child:IsA("ScrollingFrame") and child.Name == "SettingsPage" then
-        SettingsPage = child
-        break
-    end
-end
-
-if SettingsPage then
-    -- สร้าง Notification Setting Row
-    local notificationRow = Instance.new("Frame")
-    notificationRow.Size = UDim2.new(1, -30, 0, 38)
-    notificationRow.BackgroundTransparency = 1
-    notificationRow.Parent = SettingsPage
-    
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(0.55, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = "ระบบแจ้งเตือน"
-    lbl.TextColor3 = Color3.fromRGB(180, 180, 220)
-    lbl.Font = Enum.Font.GothamMedium
-    lbl.TextSize = 14
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = notificationRow
-    
-    local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Size = UDim2.new(0.45, 0, 0.8, 0)
-    toggleBtn.Position = UDim2.new(0.55, 0, 0.1, 0)
-    toggleBtn.BackgroundColor3 = NotificationSystem.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
-    toggleBtn.Text = NotificationSystem.Enabled and "เปิด" or "ปิด"
-    toggleBtn.TextColor3 = Color3.new(1,1,1)
-    toggleBtn.Font = Enum.Font.GothamBold
-    toggleBtn.TextSize = 13
-    toggleBtn.BorderSizePixel = 0
-    toggleBtn.Parent = notificationRow
-    
-    toggleBtn.MouseButton1Click:Connect(function()
-        local state = NotificationSystem:Toggle()
-        toggleBtn.Text = state and "เปิด" or "ปิด"
-        toggleBtn.BackgroundColor3 = state and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
-    end)
-end
-
-print("[Notification] ระบบแจ้งเตือน Queue พร้อมใช้งาน")
+print("[SimpleNotify] ระบบแจ้งเตือนพร้อมใช้งาน")
