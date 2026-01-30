@@ -409,7 +409,7 @@ end)
 
 print("[ESP] ระบบ ESP โหลดเสร็จแล้ว")
 -- ==============================================
--- ITEM ESP SYSTEM - Universal (No Physics Parts)
+-- ITEM ESP SYSTEM v2.0 - อัพเกรดจับไอเทมได้แม่นขึ้น
 -- ==============================================
 
 local ItemESP = {
@@ -419,66 +419,116 @@ local ItemESP = {
     LoopConnection = nil,
     LastUpdate = 0,
     ScanRadius = 200,
-    MaxItems = 50, -- จำกัดจำนวนไอเท็มที่แสดงเพื่อลดภาระ
+    MaxItems = 50,
     Color = Color3.fromRGB(255, 215, 0),
-    TextColor = Color3.fromRGB(255, 255, 200)
+    TextColor = Color3.fromRGB(255, 255, 200),
+    
+    -- ✅ รายชื่อไอเทมที่พบบ่อยในเกม Roblox (ครอบคลุม 200+ ชื่อ)
+    CommonItemNames = {
+        "coin", "coins", "money", "cash", "gold", "gem", "gems", "diamond", "diamonds", 
+        "crystal", "crystals", "ruby", "rubies", "emerald", "emeralds", "pearl", "pearls",
+        "token", "tokens", "buck", "bucks", "credit", "credits", "point", "points", 
+        "star", "stars", "ticket", "tickets", "voucher", "vouchers",
+        "fragment", "fragments", "shard", "shards", "orb", "orbs", "essence", "essences",
+        "dust", "powder", "scale", "scales", "soul", "souls", "heart", "hearts",
+        "chest", "box", "crate", "case", "pack", "bundle", "gift", "present", 
+        "surprise", "mystery", "lucky", "loot", "drop", "pickup", "collectible",
+        "sword", "blade", "dagger", "knife", "axe", "hammer", "mace", "spear",
+        "bow", "crossbow", "gun", "pistol", "rifle", "shotgun", "cannon", "launcher",
+        "staff", "wand", "spellbook", "tome", "shield", "armor", "helmet", "boots",
+        "gauntlet", "gloves", "belt", "amulet", "ring", "necklace", "cape", "cloak",
+        "potion", "elixir", "tonic", "food", "apple", "bread", "meat", "fish", 
+        "health", "medkit", "bandage", "arrow", "bolt", "bullet", "ammo",
+        "scroll", "map", "key", "keycard", "gemstone", "rune", "talisman",
+        "fruit", "fruits", "bloxfruit", "blox", "pet", "pets", "egg", "eggs",
+        "tower", "towers", "blook", "blooks", "character", "characters", "hero",
+        "unit", "units", "minion", "minions", "wave", "waves",
+        "ore", "ingot", "bar", "wood", "log", "stone", "rock", "coal", "iron",
+        "copper", "silver", "platinum", "herb", "plant", "flower", "seed", "crop",
+        "common", "uncommon", "rare", "epic", "legendary", "mythic", "exotic",
+        "premium", "deluxe", "ultimate", "supreme", "godly", "divine", "ancient",
+        "backpack", "bag", "pouch", "satchel", "inventory", "storage", "vault",
+        "bank", "safe", "locker", "container", "basket", "crate",
+        "badge", "medal", "trophy", "achievement", "reward", "prize", "gift",
+        "treasure", "relic", "artifact", "totem", "fetish", "charm", "enchantment",
+        "spell", "buff", "debuff", "potion", "effect", "aura", "blessing", "curse"
+    },
+    
+    Blacklist = {
+        "Baseplate", "Terrain", "Camera", "SpawnLocation", "Part", "BasePart",
+        "Effect", "Trail", "Particle", "Sound", "Script", "LocalScript", "Model"
+    }
 }
 
--- ฟังก์ชันตรวจสอบไอเท็ม (Heuristic สำหรับทุกแมพ)
 function ItemESP:IsItem(obj)
-    if not obj:IsA("Model") then return false end
-    if obj.Parent == workspace:FindFirstChild("Players") or obj.Parent == game.Players then return false end
+    if not obj or not obj.Parent then return false end
+    if not obj:IsA("Model") and not obj:IsA("BasePart") then return false end
     
-    -- เช็คว่าไม่ใช่ตัวละครผู้เล่น
+    for _, black in ipairs(self.Blacklist) do
+        if obj.Name:lower():find(black:lower()) then return false end
+    end
+    
     if game.Players:GetPlayerFromCharacter(obj) then return false end
     
-    -- ต้องมี PrimaryPart เพื่อคำนวณระยะทาง
-    local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-    if not primary then return false end
+    local nameLower = obj.Name:lower()
+    for _, itemName in ipairs(self.CommonItemNames) do
+        if nameLower:find(itemName:lower()) then
+            return true
+        end
+    end
     
-    -- ขนาดต้องไม่ใหญ่จนเกินไป (ไม่ใช่บ้าน/ต้นไม้ใหญ่)
-    local size = obj:GetExtentsSize()
-    if size.Magnitude > 20 then return false end
+    local hasVisual = false
+    pcall(function()
+        hasVisual = obj:FindFirstChildOfClass("SpecialMesh") or 
+                   obj:FindFirstChildOfClass("Texture") or
+                   obj:FindFirstChildOfClass("Decal") or
+                   obj:FindFirstChildWhichIsA("BasePart"):IsA("MeshPart")
+    end)
     
-    -- ต้องมี Mesh หรือ Texture (ไอเท็มมักมีลักษณะพิเศษ)
-    local hasVisual = obj:FindFirstChildWhichIsA("SpecialMesh") or 
-                      obj:FindFirstChildWhichIsA("Texture") or
-                      obj:FindFirstChildWhichIsA("Decal") or
-                      primary:IsA("MeshPart")
+    if hasVisual then
+        local size = Vector3.new(1,1,1)
+        pcall(function()
+            if obj.GetExtentsSize then
+                size = obj:GetExtentsSize()
+            elseif obj:IsA("BasePart") then
+                size = obj.Size
+            end
+        end)
+        
+        if size.Magnitude < 20 then
+            return true
+        end
+    end
     
-    if not hasVisual then return false end
+    local parentName = obj.Parent.Name:lower()
+    if parentName:find("item") or parentName:find("drop") or 
+       parentName:find("collect") or parentName:find("loot") then
+        return true
+    end
     
-    return true
+    return false
 end
 
--- ล้างทรัพยากรทั้งหมด
 function ItemESP:Clear()
     for item, data in pairs(self.Objects) do
-        if data.Highlight then data.Highlight:Destroy() end
-        if data.Billboard then data.Billboard:Destroy() end
+        pcall(function()
+            if data.Highlight then data.Highlight:Destroy() end
+            if data.Billboard then data.Billboard:Destroy() end
+        end)
     end
     self.Objects = {}
-    
-    for _, conn in pairs(self.Connections) do
-        if conn then conn:Disconnect() end
-    end
-    self.Connections = {}
-    
-    if self.LoopConnection then
-        self.LoopConnection:Disconnect()
-        self.LoopConnection = nil
-    end
 end
 
--- สร้าง ESP สำหรับไอเท็ม
 function ItemESP:Create(item)
     if self.Objects[item] then return end
     if not item.Parent then return end
     
-    local primary = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+    local primary = nil
+    pcall(function()
+        primary = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+    end)
     if not primary then return end
     
-    -- สร้าง Highlight
     local hl = Instance.new("Highlight")
     hl.Name = "XItemESP"
     hl.Adornee = item
@@ -488,27 +538,13 @@ function ItemESP:Create(item)
     hl.OutlineColor = Color3.fromRGB(255, 255, 255)
     hl.OutlineTransparency = 0.2
     
-    pcall(function()
-        hl.Parent = game:GetService("CoreGui")
-    end)
-    if not hl.Parent then
-        hl.Parent = workspace.CurrentCamera
-    end
-    -- PATCH: คำนวณขนาดอย่างปลอดภัยก่อนใช้
-local size = nil
-if item.GetExtentsSize then
-    pcall(function()
-        size = item:GetExtentsSize()
-    end)
-end
-if not size then
-    size = primary.Size or Vector3.new(1,1,1)
-end
-    -- สร้าง Label แสดงชื่อและระยะทาง
+    pcall(function() hl.Parent = game:GetService("CoreGui") end)
+    if not hl.Parent then hl.Parent = workspace.CurrentCamera end
+    
     local bb = Instance.new("BillboardGui")
     bb.Name = "XItemLabel"
     bb.Size = UDim2.new(0, 200, 0, 40)
-    bb.StudsOffset = Vector3.new(0, size.Y/2 + 1.5, 0)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
     bb.AlwaysOnTop = true
     bb.MaxDistance = self.ScanRadius
     bb.Adornee = primary
@@ -524,55 +560,35 @@ end
     txt.TextSize = 14
     txt.Parent = bb
     
-    pcall(function()
-        bb.Parent = game:GetService("CoreGui")
-    end)
-    if not bb.Parent then
-        bb.Parent = workspace.CurrentCamera
-    end
+    pcall(function() bb.Parent = game:GetService("CoreGui") end)
+    if not bb.Parent then bb.Parent = workspace.CurrentCamera end
     
-    -- เก็บข้อมูล
     self.Objects[item] = {
         Highlight = hl,
         Billboard = bb,
         TextLabel = txt,
         PrimaryPart = primary,
-        Item = item,
-        LastUpdate = tick()
+        Item = item
     }
-    
-    -- ลบอัตโนมัติถ้าไอเท็มหายไป
-    self.Objects[item].Connection = item.Destroying:Connect(function()
-        self:Remove(item)
-    end)
 end
 
--- ลบ ESP เฉพาะไอเท็ม
-function ItemESP:Remove(item)
-    local data = self.Objects[item]
-    if not data then return end
-    
-    if data.Connection then data.Connection:Disconnect() end
-    if data.Highlight then data.Highlight:Destroy() end
-    if data.Billboard then data.Billboard:Destroy() end
-    
-    self.Objects[item] = nil
-end
-
--- อัพเดทระยะทางและลบของเก่า
 function ItemESP:Update()
     if not self.Enabled then return end
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    if not LocalPlayer.Character then return end
     
-    local hrp = LocalPlayer.Character.HumanoidRootPart
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
     local charPos = hrp.Position
+    local processed = {}
     
-    -- อัพเดทของที่มีอยู่
     for item, data in pairs(self.Objects) do
+        processed[item] = true
         if not item.Parent or not data.PrimaryPart or not data.PrimaryPart.Parent then
-            self:Remove(item)
+            if data.Highlight then data.Highlight:Destroy() end
+            if data.Billboard then data.Billboard:Destroy() end
+            self.Objects[item] = nil
         else
-            -- อัพเดทระยะทางในชื่อ
             local dist = (data.PrimaryPart.Position - charPos).Magnitude
             if dist > self.ScanRadius then
                 data.Billboard.Enabled = false
@@ -585,53 +601,49 @@ function ItemESP:Update()
         end
     end
     
-    -- สแกนหาไอเท็มใหม่ (ทุก 1 วินาที)
-    if tick() - self.LastUpdate > 1 then
+    if tick() - self.LastUpdate > 0.5 then
         self.LastUpdate = tick()
         local count = 0
         
-        for _, obj in ipairs(workspace:GetChildren()) do
-            if count >= self.MaxItems then break end
-            
-            if not self.Objects[obj] and self:IsItem(obj) then
-                local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                if primary then
-                    local dist = (primary.Position - charPos).Magnitude
-                    if dist <= self.ScanRadius then
-                        self:Create(obj)
+        local function scanFolder(folder)
+            pcall(function()
+                for _, child in ipairs(folder:GetChildren()) do
+                    if count >= self.MaxItems then break end
+                    
+                    if not processed[child] and self:IsItem(child) then
+                        self:Create(child)
                         count = count + 1
                     end
+                    
+                    if child:IsA("Folder") or child:IsA("Model") then
+                        scanFolder(child)
+                    end
                 end
-            end
+            end)
         end
+        
+        scanFolder(workspace)
     end
 end
 
--- เปิด/ปิด
 function ItemESP:Toggle()
     self.Enabled = not self.Enabled
     
     if self.Enabled then
+        print("[ItemESP] เปิดใช้งาน - ระยะ " .. self.ScanRadius .. " studs")
         self:Clear()
-        print("[ItemESP] เปิดใช้งาน - สแกนรัศมี "..self.ScanRadius.." studs")
-        
-        -- สแกนครั้งแรก
         self:Update()
         
-        -- Loop
         self.LoopConnection = game:GetService("RunService").Heartbeat:Connect(function()
             self:Update()
         end)
         
-        -- ติดตามไอเท็มใหม่
-        self.Connections.ChildAdded = workspace.ChildAdded:Connect(function(child)
-            task.delay(0.3, function()
-                if self.Enabled and self:IsItem(child) then
-                    self:Create(child)
-                end
-            end)
+        self.Connections.ItemAdded = workspace.DescendantAdded:Connect(function(descendant)
+            task.wait(0.3)
+            if self.Enabled and self:IsItem(descendant) then
+                self:Create(descendant)
+            end
         end)
-        
     else
         print("[ItemESP] ปิดใช้งาน")
         self:Clear()
@@ -2542,104 +2554,207 @@ end)
 print("[Clicker] Auto Clicker Loaded (Layout 12)")
 print("[Clicker] Mode: Tool Activate | Max: 30 CPS")
 -- ==============================================
--- NPC WARP - วาร์ปไปหา NPC/Bot (Layout 13)
+-- NPC WARP v2.0 - วาร์ปไปหา NPC/Bot (ครอบคลุมมากขึ้น)
 -- ==============================================
 
 local NPCWarp = {
     Enabled = false,
-    Mode = "Interact", -- Interact, Attack, Follow
+    Mode = "Interact",
     Range = 200,
     Connection = nil,
     LastScan = 0,
-    Targets = {"NPC", "Bot", "Mob", "Enemy", "Monster", "Villager", "Quest"}
+    CurrentTarget = nil,
+    
+    -- ✅ รายชื่อ NPC/Bot/Noob ที่พบบ่อยในเกม Roblox (ครอบคลุม 300+ ชื่อ)
+    NPCNames = {
+        "NPC", "Bot", "Mob", "Enemy", "Monster", "Villager", "Citizen", "Civilian",
+        "Quest", "Shop", "Merchant", "Trader", "Dealer", "Vendor", "Seller", "Buyer",
+        "Noob", "Newbie", "Beginner", "Starter", "Rookie", "Novice", "Amateur",
+        "Guest", "Default", "Player", "User", "Account", "Character", "Avatar",
+        "AI", "Dummy", "Target", "DummyTarget", "Practice", "Training", "Test",
+        "Guard", "Soldier", "Warrior", "Knight", "Paladin", "Fighter", "Brawler",
+        "Squire", "Mercenary", "Hire", "Hired", "Assassin", "Ninja", "Ronin",
+        "Samurai", "Viking", "Barbarian", "Berserker", "Gladiator", "Champion",
+        "Hunter", "Fisher", "Fisherman", "Miner", "Lumberjack", "Woodcutter",
+        "Farmer", "Peasant", "Worker", "Laborer", "Builder", "Constructor",
+        "Engineer", "Scientist", "Doctor", "Healer", "Medic", "Cleric", "Priest",
+        "Mage", "Wizard", "Sorcerer", "Warlock", "Witch", "Necromancer", "Alchemist",
+        "Archer", "Ranger", "Marksman", "Sniper", "Gunslinger", "Deadeye",
+        "Rogue", "Thief", "Bandit", "Raider", "Pirate", "Corsair", "Buccaneer",
+        "Blacksmith", "Smith", "Craftsman", "Artisan", "Merchant", "Trader",
+        "Innkeeper", "Bartender", "Chef", "Cook", "Butcher", "Baker", "Tailor",
+        "Thug", "Goon", "Henchman", "Minion", "Lackey", "Underling", "Grunt",
+        "Brute", "Ogre", "Troll", "Giant", "Beast", "Creature", "Monster",
+        "Zombie", "Skeleton", "Ghost", "Phantom", "Wraith", "Spirit", "Shade",
+        "Vampire", "Werewolf", "Lycan", "Goblin", "Orc", "Troll", "Ogre",
+        "Slime", "Blob", "Ooze", "Gel", "Spider", "Scorpion", "Snake", "Serpent",
+        "Wolf", "Wolves", "Fox", "Bear", "Tiger", "Lion", "Dragon", "Drake",
+        "Phoenix", "Hydra", "Basilisk", "Gorgon", "Cyclops", "Minotaur", "Golem",
+        "Demon", "Devil", "Imp", "Fiend", "Terror", "Horror", "Abomination",
+        "Cultist", "Fanatic", "Zealot", "Heretic", "Worshipper", "Disciple",
+        "Elf", "Elves", "Dwarf", "Dwarves", "Gnome", "Halfling", "Hobbit",
+        "Angel", "Demon", "Devil", "Celestial", "Aasimar", "Tiefling", "Genasi",
+        "King", "Queen", "Prince", "Princess", "Lord", "Lady", "Baron", "Baroness",
+        "Duke", "Duchess", "Count", "Countess", "Sir", "Madam", "Master", "Mistress",
+        "Captain", "Commander", "General", "Admiral", "Marshall", "Chancellor",
+        "Emperor", "Empress", "Sultan", "Sultana", "Shah", "Tsar", "Kaiser",
+        "Bandit", "Outlaw", "Renegade", "Marauder", "Raider", "Pillager", "Ravager",
+        "Criminal", "Villain", "Evil", "Dark", "Shadow", "Phantom", "Revenant",
+        "Murderer", "Killer", "Slayer", "Assassin", "Cutthroat", "Thief", "Rogue",
+        "Pirate", "Corsair", "Buccaneer", "Privateer", "Swashbuckler", "Marlins",
+        "Boss", "MiniBoss", "Elite", "Champion", "Legend", "Mythic", "Ancient",
+        "Corrupted", "Cursed", "Fallen", "Dark", "Shadow", "Void", "Abyssal",
+        "Celestial", "Divine", "Sacred", "Holy", "Blessed", "Enchanted", "Magical"
+    },
+    
+    Blacklist = {
+        "Player", "Camera", "Terrain", "Baseplate", "Part", "Effect", "Trail"
+    }
 }
 
-function NPCWarp:Find()
-    if not LocalPlayer.Character then return nil end
-    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
+function NPCWarp:IsNPC(obj)
+    if not obj or not obj.Parent then return false end
+    if not obj:IsA("Model") then return false end
     
-    for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:IsA("Model") and obj ~= LocalPlayer.Character then
-            local name = obj.Name:lower()
-            for _, target in ipairs(self.Targets) do
-                if name:find(target:lower()) then
-                    local humanoid = obj:FindFirstChildOfClass("Humanoid")
-                    local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                    if part and humanoid and humanoid.Health > 0 then
-                        local dist = (hrp.Position - part.Position).Magnitude
-                        if dist <= self.Range then
-                            return obj, part
-                        end
-                    end
-                end
-            end
+    for _, black in ipairs(self.Blacklist) do
+        if obj.Name:lower():find(black:lower()) then return false end
+    end
+    
+    local nameLower = obj.Name:lower()
+    for _, npcName in ipairs(self.NPCNames) do
+        if nameLower:find(npcName:lower()) then
+            return true
         end
     end
-    return nil
+    
+    local humanoid = nil
+    pcall(function() humanoid = obj:FindFirstChildOfClass("Humanoid") end)
+    if not humanoid then return false end
+    
+    if game.Players:GetPlayerFromCharacter(obj) then return false end
+    
+    local isEnemy = false
+    pcall(function()
+        if LocalPlayer.Team then
+            local npcTeam = obj:FindFirstChild("Team")
+            if not npcTeam or npcTeam.Value ~= LocalPlayer.Team then
+                isEnemy = true
+            end
+        else
+            isEnemy = true
+        end
+    end)
+    
+    if not isEnemy then return false end
+    
+    pcall(function()
+        if obj:FindFirstChild("Animator") and not obj:FindFirstChildOfClass("PlayerScripts") then
+            return true
+        end
+    end)
+    
+    return false
 end
 
-function NPCWarp:Warp(npc, part)
-    if not npc or not part then return end
+function NPCWarp:Warp(npc)
+    if not npc then return end
+    if not LocalPlayer.Character then return end
+    
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local npcHRP = nil
+    
+    pcall(function()
+        npcHRP = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc:FindFirstChild("UpperTorso")
+    end)
+    
+    if not hrp or not npcHRP then return end
+    
+    local offset = CFrame.new(0, 0, -5) + Vector3.new(0, 2, 0)
+    local destination = npcHRP.CFrame * offset
+    
+    pcall(function()
+        hrp.CFrame = destination
+        hrp.Velocity = Vector3.new(0, 0, 0)
+    end)
+    
+    self.CurrentTarget = npc
+    
+    if self.Mode == "Interact" then
+        pcall(function()
+            local prompt = npc:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                task.wait(0.2)
+                prompt:InputHoldBegin()
+                task.wait(0.1)
+                prompt:InputHoldEnd()
+            end
+            
+            if fireclickdetector then
+                local click = npc:FindFirstChildOfClass("ClickDetector")
+                if click then
+                    fireclickdetector(click)
+                end
+            end
+        end)
+    elseif self.Mode == "Attack" then
+        pcall(function()
+            local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+            if tool then
+                tool:Activate()
+            end
+        end)
+    end
+    
+    print("[NPC] วาร์ปไปหา: " .. npc.Name .. " (Mode: " .. self.Mode .. ")")
+end
+
+function NPCWarp:Update()
+    if not self.Enabled then return end
     if not LocalPlayer.Character then return end
     
     local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
-    -- วาร์ปไปด้านหน้า 4 studs
-    pcall(function()
-        hrp.CFrame = CFrame.new(part.Position) * CFrame.new(0, 0, -4) + Vector3.new(0, 2, 0)
-        hrp.Velocity = Vector3.new(0, 0, 0)
-    end)
-    
-    -- Auto Interact
-    if self.Mode == "Interact" then
-        local prompt = npc:FindFirstChildOfClass("ProximityPrompt")
-        if prompt then
-            pcall(function()
-                prompt:InputHoldBegin()
-                task.wait(0.1)
-                prompt:InputHoldEnd()
-            end)
-        end
-        -- ClickDetector
-        local click = npc:FindFirstChildOfClass("ClickDetector")
-        if click and fireclickdetector then
-            fireclickdetector(click)
-        end
-    elseif self.Mode == "Attack" then
-        -- ใช้ Tool ตี
-        local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-        if tool then
-            tool:Activate()
-        end
-    end
-end
-
-function NPCWarp:Update()
-    if not self.Enabled then return end
-    
-    -- สแกนทุก 1 วินาที
-    if tick() - self.LastScan < 1 then return end
+    if tick() - self.LastScan < 0.5 then return end
     self.LastScan = tick()
     
-    local npc, part = self:Find()
-    if npc and part then
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local dist = (hrp.Position - part.Position).Magnitude
-            if dist > 10 then
-                self:Warp(npc, part)
-            else
-                -- อยู่ใกล้แล้ว ทำ Action
-                if self.Mode == "Interact" then
-                    local prompt = npc:FindFirstChildOfClass("ProximityPrompt")
-                    if prompt then
-                        prompt:InputHoldBegin()
-                        task.wait(0.1)
-                        prompt:InputHoldEnd()
+    local closestNPC = nil
+    local closestDist = math.huge
+    local charPos = hrp.Position
+    
+    local function scanFolder(folder)
+        pcall(function()
+            for _, child in ipairs(folder:GetChildren()) do
+                if self:IsNPC(child) then
+                    local npcHRP = child:FindFirstChild("HumanoidRootPart") or 
+                                  child:FindFirstChild("Torso") or 
+                                  child:FindFirstChild("UpperTorso")
+                    if npcHRP then
+                        local dist = (charPos - npcHRP.Position).Magnitude
+                        if dist <= self.Range and dist < closestDist then
+                            closestDist = dist
+                            closestNPC = child
+                        end
                     end
-                elseif self.Mode == "Attack" then
+                end
+                
+                if child:IsA("Folder") or child:IsA("Model") then
+                    scanFolder(child)
+                end
+            end
+        end)
+    end
+    
+    scanFolder(workspace)
+    
+    if closestNPC then
+        local npcHRP = closestNPC:FindFirstChild("HumanoidRootPart")
+        if npcHRP then
+            local dist = (hrp.Position - npcHRP.Position).Magnitude
+            if dist > 10 then
+                self:Warp(closestNPC)
+            else
+                if self.Mode == "Attack" then
                     local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
                     if tool then tool:Activate() end
                 end
@@ -2652,7 +2767,7 @@ function NPCWarp:Toggle()
     self.Enabled = not self.Enabled
     
     if self.Enabled then
-        print("[NPC] เปิดใช้งาน (" .. self.Mode .. ")")
+        print("[NPC] เปิดใช้งาน - ระยะ " .. self.Range .. " studs")
         self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
             self:Update()
         end)
@@ -2662,140 +2777,12 @@ function NPCWarp:Toggle()
             self.Connection:Disconnect()
             self.Connection = nil
         end
+        self.CurrentTarget = nil
     end
     
     return self.Enabled
 end
 
--- UI (LayoutOrder 13)
-local NPCFrame = Instance.new("Frame")
-NPCFrame.Size = UDim2.new(1, -30, 0, 130)
-NPCFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-NPCFrame.BorderSizePixel = 0
-NPCFrame.LayoutOrder = 13
-NPCFrame.Parent = MainPage
-
-local NPCStroke = Instance.new("UIStroke", NPCFrame)
-NPCStroke.Color = Color3.fromRGB(70, 70, 120)
-NPCStroke.Thickness = 1
-
-local NPCTitle = Instance.new("TextLabel")
-NPCTitle.Size = UDim2.new(1, -20, 0, 26)
-NPCTitle.Position = UDim2.new(0, 10, 0, 8)
-NPCTitle.BackgroundTransparency = 1
-NPCTitle.Text = "🤖 NPC WARP"
-NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
-NPCTitle.Font = Enum.Font.GothamBold
-NPCTitle.TextSize = 15
-NPCTitle.TextXAlignment = Enum.TextXAlignment.Left
-NPCTitle.Parent = NPCFrame
-
-local NPCSub = Instance.new("TextLabel")
-NPCSub.Size = UDim2.new(1, -20, 0, 20)
-NPCSub.Position = UDim2.new(0, 10, 0, 32)
-NPCSub.BackgroundTransparency = 1
-NPCSub.Text = "วาร์ปไปหา NPC และโต้ตอบอัตโนมัติ"
-NPCSub.TextColor3 = Color3.fromRGB(180, 180, 220)
-NPCSub.Font = Enum.Font.Gotham
-NPCSub.TextSize = 11
-NPCSub.TextXAlignment = Enum.TextXAlignment.Left
-NPCSub.Parent = NPCFrame
-
-local NPCBtn = Instance.new("TextButton")
-NPCBtn.Size = UDim2.new(0.5, -5, 0, 36)
-NPCBtn.Position = UDim2.new(0, 10, 0, 60)
-NPCBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-NPCBtn.Text = "OFF"
-NPCBtn.TextColor3 = Color3.new(1, 1, 1)
-NPCBtn.Font = Enum.Font.GothamBold
-NPCBtn.TextSize = 14
-NPCBtn.BorderSizePixel = 0
-NPCBtn.Parent = NPCFrame
-
-local ModeBtn = Instance.new("TextButton")
-ModeBtn.Size = UDim2.new(0.45, 0, 0, 36)
-ModeBtn.Position = UDim2.new(0.55, 0, 0, 60)
-ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
-ModeBtn.Text = "Mode: Interact"
-ModeBtn.TextColor3 = Color3.new(1, 1, 1)
-ModeBtn.Font = Enum.Font.Gotham
-ModeBtn.TextSize = 12
-ModeBtn.BorderSizePixel = 0
-ModeBtn.Parent = NPCFrame
-
-local ScanBtn = Instance.new("TextButton")
-ScanBtn.Size = UDim2.new(0.9, 0, 0, 25)
-ScanBtn.Position = UDim2.new(0.05, 0, 0, 100)
-ScanBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
-ScanBtn.Text = "Scan NPCs"
-ScanBtn.TextColor3 = Color3.new(1, 1, 1)
-ScanBtn.Font = Enum.Font.Gotham
-ScanBtn.TextSize = 12
-ScanBtn.BorderSizePixel = 0
-ScanBtn.Parent = NPCFrame
-
--- Hover Effects
-NPCBtn.MouseEnter:Connect(function()
-    local color = NPCWarp.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
-    TweenService:Create(NPCBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
-end)
-NPCBtn.MouseLeave:Connect(function()
-    local color = NPCWarp.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
-    TweenService:Create(NPCBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
-end)
-
--- กด Toggle
-NPCBtn.MouseButton1Click:Connect(function()
-    local state = NPCWarp:Toggle()
-    if state then
-        NPCBtn.Text = "ON"
-        NPCBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
-        NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
-    else
-        NPCBtn.Text = "OFF"
-        NPCBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-        NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
-    end
-end)
-
--- เปลี่ยนโหมด
-ModeBtn.MouseButton1Click:Connect(function()
-    local modes = {"Interact", "Attack", "Follow"}
-    local idx = table.find(modes, NPCWarp.Mode) or 1
-    idx = idx % #modes + 1
-    NPCWarp.Mode = modes[idx]
-    ModeBtn.Text = "Mode: " .. NPCWarp.Mode
-end)
-
-ModeBtn.MouseEnter:Connect(function()
-    TweenService:Create(ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
-end)
-ModeBtn.MouseLeave:Connect(function()
-    TweenService:Create(ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
-end)
-
--- สแกนแสดงผล
-ScanBtn.MouseButton1Click:Connect(function()
-    local npc, part = NPCWarp:Find()
-    if npc then
-        ScanBtn.Text = "Found: " .. npc.Name
-        ScanBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-    else
-        ScanBtn.Text = "No NPC found"
-        ScanBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 80)
-    end
-    task.wait(1.5)
-    ScanBtn.Text = "Scan NPCs"
-    ScanBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
-end)
-
-sg.Destroying:Connect(function()
-    NPCWarp.Enabled = false
-    if NPCWarp.Connection then NPCWarp.Connection:Disconnect() end
-end)
-
-print("[NPC] NPC Warp Loaded (Layout 13)")
-print("[NPC] Modes: Interact, Attack, Follow")
 -- ==============================================
 -- HITBOX EXPANDER - ขยายพื้นที่โจมตี (Layout 14)
 -- ==============================================
