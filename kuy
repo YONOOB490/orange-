@@ -3622,6 +3622,13 @@ function AntiBan:AntiRobloxDetection()
     end
 end
 
+    
+    -- ป้องกันการใช้ Stats API ที่น่าสงสัย
+    if game:GetService("Stats"):FindFirstChild("Performance") then
+        self:SuspiciousActivityDetected("Performance Scan")
+    end
+end
+
 -- ==============================================
 -- 4. ป้องกันการสแกนหน่วยความจำ (Anti-Memory Scan)
 -- ==============================================
@@ -3695,7 +3702,8 @@ function AntiBan:SafeExecute(func, ...)
     local delay = self:GetRandomDelay(0.05, 0.3)
     
     task.delay(delay, function()
-        pcall(func, unpack(args))    end)
+        pcall(func, unpack(args))
+    end)
     
     return true
 end
@@ -3793,8 +3801,10 @@ function AntiBan:HealthCheck()
             
             -- ทำความสะอาดหน่วยความจำ
             collectgarbage("collect")
-        end    end
+        end
+    end
 end
+
 
 -- ==============================================
 -- 11. ป้องกันการใช้ API ที่น่าสงสัย
@@ -3842,9 +3852,11 @@ function AntiBan:Enable()
         self:AntiScriptInjection()
         self:AntiAPIMisuse()
     end
-        if self.Settings.AntiMemoryScan then
+    
+    if self.Settings.AntiMemoryScan then
         self:AntiMemoryScan()
     end
+
     
     if self.Settings.AntiNetworkScan then
         self:AntiNetworkScan()
@@ -3891,7 +3903,8 @@ end
 
 AntiBan:Enable()
 
--- ทำความสะอาดเมื่อ GUI ปิดsg.Destroying:Connect(function()
+-- ทำความสะอาดเมื่อ GUI ปิด
+sg.Destroying:Connect(function()
     AntiBan:Disable()
     print("[AntiBan] 🗑️ ล้างทรัพยากรระบบป้องกัน")
 end)
