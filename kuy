@@ -421,30 +421,44 @@ local ItemESP = {
 
 -- ฟังก์ชันหัวใจหลัก: ตรวจสอบว่าเป็นไอเท็มหรือไม่จาก "การตอบสนอง" ไม่ใช่ชื่อ
 function ItemESP:IsItem(obj)
-    -- 1. ตรวจสอบว่ามี ProximityPrompt (กด E เพื่อเก็บ) หรือไม่
-    if obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
-        return true
-    end
-
-    -- 2. ตรวจสอบว่ามี ClickDetector (คลิกเพื่อเก็บ) หรือไม่
-    if obj:FindFirstChildWhichIsA("ClickDetector", true) then
-        return true
-    end
-
-    -- 3. ตรวจสอบว่าเป็น Tool ที่ตกอยู่ที่พื้น (Handle)
-    if obj:IsA("BackpackItem") or obj:IsA("Tool") then
-        return true
-    end
-
-    -- 4. ตรวจสอบว่าเป็น Part ที่แตะได้ (TouchInterest) และอยู่ในโฟลเดอร์ที่ไม่ใช่ส่วนประกอบแมพ
-    -- (ป้องกันการโชว์พื้นหรือกำแพง)
+    -- 1. ต้องเป็น Model หรือ Tool
+    if not (obj:IsA("Model") or obj:IsA("Tool") or obj:IsA("BasePart")) then return false end
+    
+    -- 2. ไม่ใช่ผู้เล่น
+    if game.Players:GetPlayerFromCharacter(obj) then return false end
+    
+    -- 3. หา ProximityPrompt แบบ recursive
+    local hasPrompt = false
+    pcall(function()
+        for _, child in ipairs(obj:GetDescendants()) do
+            if child:IsA("ProximityPrompt") then
+                hasPrompt = true
+                break
+            end
+        end
+    end)
+    if hasPrompt then return true end
+    
+    -- 4. หา ClickDetector
+    local hasClick = false
+    pcall(function()
+        for _, child in ipairs(obj:GetDescendants()) do
+            if child:IsA("ClickDetector") then
+                hasClick = true
+                break
+            end
+        end
+    end)
+    if hasClick then return true end
+    
+    -- 5. มี TouchInterest และอยู่ในโฟลเดอร์ที่เหมาะสม
     if obj:IsA("BasePart") and obj:FindFirstChild("TouchInterest") then
         local parentName = obj.Parent.Name:lower()
         if parentName:find("item") or parentName:find("drop") or parentName:find("spawn") then
             return true
         end
     end
-
+    
     return false
 end
 
@@ -515,10 +529,37 @@ function ItemESP:Remove(obj)
         self.ItemsFound[obj] = nil
     end
 end
+function ItemESP:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[ItemESP] เปิดใช้งาน")
+        
+        -- สแกนครั้งแรก
+        self:Update()
+        
+        -- Loop
+        self.LoopConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            self:Update()
+        end)
+        
+        -- ติดตามไอเท็มใหม่
+        self.Connections.ChildAdded = workspace.ChildAdded:Connect(function(child)
+            task.delay(0.3, function()
+                if self.Enabled and self:IsItem(child) then
+                    self:Create(child)
+                end
+            end)
+        end)
+        
+    else
+        print("[ItemESP] ปิดใช้งาน")
+        self:Clear()
+    end
+    
+    return self.Enabled
+end
 
-function ItemESP:Toggle(bool)
-    self.Enabled = bool
-    if not bool then
         for obj, _ in pairs(self.ItemsFound) do
             self:Remove(obj)
         end
@@ -3417,7 +3458,7 @@ local AutoIntFrame = Instance.new("Frame")
 AutoIntFrame.Size = UDim2.new(1, -30, 0, 90) -- ขนาดกะทัดรัด
 AutoIntFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
 AutoIntFrame.BorderSizePixel = 0
-[span_5](start_span)AutoIntFrame.LayoutOrder = 5 -- ต่อจาก Jump Power[span_5](end_span)
+AutoIntFrame.LayoutOrder = 17 -- ต่อจาก Float
 AutoIntFrame.Parent = MainPage
 
 local AutoIntStroke = Instance.new("UIStroke", AutoIntFrame)
@@ -3447,7 +3488,6 @@ AutoIntBtn.TextSize = 14
 AutoIntBtn.BorderSizePixel = 0
 AutoIntBtn.Parent = AutoIntFrame
 
--[span_6](start_span)[span_7](start_span)- Hover Effects (แบบเดียวกับปุ่ม ESP/Speed)[span_6](end_span)[span_7](end_span)
 AutoIntBtn.MouseEnter:Connect(function()
     local color = AutoInteract.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
     TweenService:Create(AutoIntBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
