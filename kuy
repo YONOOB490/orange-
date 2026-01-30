@@ -1,11 +1,21 @@
 -- Executor Hub v12.1 - Complete GUI (มุมเหลี่ยม ไม่โค้งเลย)
 -- ลบความโค้งมุมทั้งหมด + ลบตัวเลือกปรับมุมใน Settings
+-- ✅ เพิ่มที่ด้านบน
+local fireclickdetector = fireclickdetector or function(click)
+    if click and click:IsA("ClickDetector") then
+        click:Fire()
+    end
+end
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 -- INSERT: รอ LocalPlayer ให้พร้อม
+-- ✅ ถูกต้อง
 if not LocalPlayer then
-    repeat task.wait() LocalPlayer = Players.LocalPlayer until LocalPlayer
+    repeat 
+        wait() 
+        LocalPlayer = Players.LocalPlayer 
+    until LocalPlayer
 end
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
