@@ -127,12 +127,13 @@ local MainLayout = Instance.new("UIListLayout")
 MainLayout.Padding = UDim.new(0, 10)
 MainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 MainLayout.Parent = MainPage
--- ทำให้เลื่อนลงได้เยอะพอสมควร แต่ไม่เยอะเกิน (บวก 1500)
-MainLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    local contentHeight = MainLayout.AbsoluteContentSize.Y
-    MainPage.CanvasSize = UDim2.new(0, 0, 0, contentHeight + 1500)  -- ปรับตรงนี้ได้ตามชอบ
-end)
+-- ทำให้เลื่อนลงได้เยอะ ๆ (บวกพื้นที่ว่างล่าง 1500 pixel)
+MainPage.CanvasSize = UDim2.new(0, 0, 0, 1500)
 
+-- scrollbar ชัดเจน
+MainPage.ScrollBarThickness = 6
+MainPage.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 220)
+MainPage.ScrollBarImageTransparency = 0.4
 task.spawn(function()
     task.wait(0.3)
     if MainLayout.AbsoluteContentSize then
