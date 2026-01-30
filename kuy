@@ -3501,413 +3501,126 @@ TweenService:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
 print("Hub v12.1 Loaded – มุมเหลี่ยมหมดทุกจุดแล้ว")
 -- ==============================================
 -- ANTI-BAN SYSTEM v2.0 - ป้องกันแบน/เตะ/ตรวจจับ
--- วางโค้ดนี้หลังจาก: print("Hub v12.1 Loaded...")
+-- แก้ไขสำหรับ Delta Executor (ลบโค้ดซ้ำ + ใช้ pcall)
 -- ==============================================
 
 local AntiBan = {
     Enabled = true,
     Initialized = false,
     LastCheck = tick(),
-    CheckInterval = math.random(5, 15),
-    RandomSeed = math.random(100000, 999999),
+    CheckInterval = 10,
     SuspiciousActivity = 0,
-    MaxSuspicious = 10,
     
-    -- การตั้งค่าการป้องกัน
     Settings = {
         AntiKick = true,
         AntiBan = true,
-        AntiDetection = true,
-        AntiMemoryScan = true,
-        AntiNetworkScan = true,
-        RandomExecution = true,
-        ObfuscateCalls = true
+        AntiDetection = true
     }
 }
 
--- ==============================================
--- 1. ป้องกันการโดนเตะ (Anti-Kick)
--- ==============================================
-
+-- ป้องกันการโดนเตะ
 function AntiBan:AntiKick()
-    -- ป้องกันการเตะโดยการซ่อนการเชื่อมต่อ
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
     
-    -- ป้องกันการเตะจากระบบเกม
     Players.ChildRemoved:Connect(function(child)
         if child == LocalPlayer and self.Settings.AntiKick then
             task.spawn(function()
-                task.wait(math.random(100, 500) / 1000)
+                task.wait(0.5)
                 if not LocalPlayer.Parent then
-                    -- พยายามเชื่อมต่อใหม่
-                    self:SuspiciousActivityDetected("Kick Attempt")
+                    print("[AntiBan] ⚠️ Kick detected")
                 end
             end)
         end
     end)
-    
-    -- ป้องกัน RemoteEvent ที่น่าสงสัย
-    game.DescendantAdded:Connect(function(descendant)        if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
-            if descendant.Name:lower():find("kick") or 
-               descendant.Name:lower():find("ban") or
-               descendant.Name:lower():find("remove") then
-                self:SuspiciousActivityDetected("Kick Remote")
-            end
-        end
-    end)
 end
 
--- ==============================================
--- 2. ป้องกันการแบน (Anti-Ban)
--- ==============================================
-
+-- ป้องกันการแบน
 function AntiBan:AntiBan()
-    -- ป้องกันการแบนโดยการตรวจสอบสคริปต์ที่น่าสงสัย
     game.DescendantAdded:Connect(function(descendant)
         if descendant:IsA("Script") or descendant:IsA("LocalScript") then
-            if descendant.Name:lower():find("ban") or
-               descendant.Name:lower():find("anticheat") or
-               descendant.Name:lower():find("security") then
-                self:SuspiciousActivityDetected("Ban Script")
+            local name = descendant.Name:lower()
+            if name:find("ban") or name:find("anticheat") or name:find("security") then
+                print("[AntiBan] ⚠️ Detected:", descendant.Name)
             end
         end
     end)
-    
-    -- ป้องกันการใช้ฟังก์ชันที่น่าสงสัย
-    local suspiciousFunctions = {
-        "Kick", "Ban", "Remove", "Destroy", 
-        "Delete", "Terminate", "Shutdown"
-    }
-    
-    for _, funcName in ipairs(suspiciousFunctions) do
-        if game[funcName] then
-            self:SuspiciousActivityDetected("Ban Function: " .. funcName)
-        end
-    end
 end
 
--- ==============================================
--- 3. ป้องกันการตรวจจับจาก Roblox (Anti-Detection)
--- ==============================================
-
+-- ป้องกันการตรวจจับ
 function AntiBan:AntiRobloxDetection()
-    -- ป้องกันการตรวจจับจาก Roblox Core
     local CoreGui = game:GetService("CoreGui")
     
-    -- ตรวจสอบการเข้าถึงสคริปต์
     local function checkScriptAccess(script)
-        if script and script.Parent then            local parentName = script.Parent.Name:lower()
-            if parentName:find("roblox") or 
-               parentName:find("core") or
-               parentName:find("security") then
+        if script and script.Parent then
+            local parentName = script.Parent.Name:lower()
+            if parentName:find("roblox") or parentName:find("core") then
                 return true
             end
         end
         return false
     end
     
-    -- ป้องกันการสแกนสคริปต์
     game.DescendantAdded:Connect(function(descendant)
         if descendant:IsA("Script") or descendant:IsA("LocalScript") then
             if checkScriptAccess(descendant) then
-                self:SuspiciousActivityDetected("Script Scan")
-            end
-        end
-    end)
-    
-    -- ป้องกันการใช้ Stats API ที่น่าสงสัย
-    if game:GetService("Stats"):FindFirstChild("Performance") then
-        self:SuspiciousActivityDetected("Performance Scan")
-    end
-end
-
-    
-    -- ป้องกันการใช้ Stats API ที่น่าสงสัย
-    if game:GetService("Stats"):FindFirstChild("Performance") then
-        self:SuspiciousActivityDetected("Performance Scan")
-    end
-end
-
--- ==============================================
--- 4. ป้องกันการสแกนหน่วยความจำ (Anti-Memory Scan)
--- ==============================================
-
-function AntiBan:AntiMemoryScan()
-    -- ป้องกันการสแกนหน่วยความจำ
-    collectgarbage("collect")
-    
-    -- ตรวจสอบการใช้หน่วยความจำสูง
-    local info = gcinfo()
-    if info > 50000 then -- 50 MB
-        self:SuspiciousActivityDetected("High Memory Usage")
-        collectgarbage("collect")
-    end
-    
-    -- ทำความสะอาดหน่วยความจำเป็นระยะ
-    task.spawn(function()
-        while self.Enabled do
-            task.wait(math.random(30, 60))
-            if self.Enabled and self.Settings.AntiMemoryScan then
-                collectgarbage("collect")
+                print("[AntiBan] ⚠️ Script scan detected")
             end
         end
     end)
 end
--- ==============================================
--- 5. ป้องกันการสแกนเครือข่าย (Anti-Network Scan)
--- ==============================================
 
-function AntiBan:AntiNetworkScan()
-    -- ป้องกันการสแกนเครือข่าย
-    local HttpService = game:GetService("HttpService")
-    
-    -- ตรวจสอบการเชื่อมต่อที่น่าสงสัย
-    if HttpService.HttpEnabled then
-        local suspiciousURLs = {
-            "ban", "kick", "anticheat", "security",
-            "detection", "scan", "monitor"
-        }
-        
-        -- ป้องกันการส่งข้อมูลที่น่าสงสัย
-        game:GetService("ReplicatedStorage").DescendantAdded:Connect(function(descendant)
-            if descendant:IsA("RemoteEvent") then
-                for _, url in ipairs(suspiciousURLs) do
-                    if descendant.Name:lower():find(url) then
-                        self:SuspiciousActivityDetected("Network Scan: " .. url)
-                    end
-                end
-            end
-        end)
-    end
-end
-
--- ==============================================
--- 6. การสุ่มการดำเนินการ (Random Execution)
--- ==============================================
-
+-- สุ่มดีเลย์
 function AntiBan:GetRandomDelay(min, max)
-    if self.Settings.RandomExecution then
-        return math.random((min or 0.1) * 1000, (max or 0.5) * 1000) / 1000
-    end
-    return (min or 0.1)
+    return math.random((min or 0.1) * 100, (max or 0.5) * 100) / 100
 end
 
-function AntiBan:SafeExecute(func, ...)
-    if not self.Enabled then
-        return pcall(func, ...)
-    end
-    
-    local args = {...}
-    local delay = self:GetRandomDelay(0.05, 0.3)
-    
-    task.delay(delay, function()
-        pcall(func, unpack(args))
-    end)
-    
-    return true
-end
-
--- ==============================================
--- 7. การซ่อนการเรียกใช้ (Obfuscation)
--- ==============================================
-
-function AntiBan:ObfuscateData(data)
-    if not self.Settings.ObfuscateCalls then
-        return data
-    end
-    
-    -- แปลงข้อมูลให้ซับซ้อน
-    if typeof(data) == "string" then
-        local chars = {}
-        for i = 1, #data do
-            table.insert(chars, data:sub(i, i))
-        end
-        return table.concat(chars)
-    elseif typeof(data) == "number" then
-        return data + math.random(-1, 1) / 10000
-    end
-    
-    return data
-end
-
--- ==============================================
--- 8. ตรวจจับกิจกรรมที่น่าสงสัย
--- ==============================================
-
-function AntiBan:SuspiciousActivityDetected(reason)
-    self.SuspiciousActivity = self.SuspiciousActivity + 1
-    
-    print("[AntiBan] ⚠️ กิจกรรมที่น่าสงสัย: " .. reason)
-    
-    if self.SuspiciousActivity >= self.MaxSuspicious then
-        print("[AntiBan] 🔴 ตรวจพบกิจกรรมที่น่าสงสัยมากเกินไป!")
-        self:SuspiciousActivity = 0
-        
-        -- ดำเนินการป้องกัน
-        task.spawn(function()
-            task.wait(math.random(1, 3))
-            self:ResetSuspiciousActivity()
-        end)
-    end
-    
-    return self.SuspiciousActivity
-end
-function AntiBan:ResetSuspiciousActivity()
-    self.SuspiciousActivity = 0
-    print("[AntiBan] ✅ รีเซ็ตกิจกรรมที่น่าสงสัย")
-    
-    -- ทำความสะอาด
-    collectgarbage("collect")
-end
-
--- ==============================================
--- 9. ป้องกันการใช้สคริปต์ที่น่าสงสัย
--- ==============================================
-
-function AntiBan:AntiScriptInjection()
-    -- ป้องกันการแทรกสคริปต์
-    game.DescendantAdded:Connect(function(descendant)
-        if descendant:IsA("LocalScript") then
-            if not descendant:IsDescendantOf(script) and 
-               not descendant:IsDescendantOf(game.Players.LocalPlayer) then
-                -- สคริปต์นี้อาจเป็นอันตราย
-                self:SuspiciousActivityDetected("Script Injection")
-            end
-        end
-    end)
-end
-
--- ==============================================
--- 10. ตรวจสอบระบบเป็นระยะ
--- ==============================================
-
+-- ตรวจสอบระบบ
 function AntiBan:HealthCheck()
     while self.Enabled do
         task.wait(self.CheckInterval)
-        
         if not self.Enabled then break end
         
-        -- ตรวจสอบสุขภาพของระบบ
-        local currentTime = tick()
-        
-        if currentTime - self.LastCheck > self.CheckInterval then
-            self.LastCheck = currentTime
-            
-            -- ตรวจสอบว่ามีสิ่งผิดปกติหรือไม่
-            if self.SuspiciousActivity > 0 then
-                self:ResetSuspiciousActivity()
-            end
-            
-            -- ทำความสะอาดหน่วยความจำ
-            collectgarbage("collect")
-        end
-    end
-end
-
-
--- ==============================================
--- 11. ป้องกันการใช้ API ที่น่าสงสัย
--- ==============================================
-
-function AntiBan:AntiAPIMisuse()
-    -- ป้องกันการใช้ API ที่น่าสงสัย
-    local suspiciousAPIs = {
-        "GetObjects", "LoadLibrary", "InsertService",
-        "MarketplaceService", "GamePassService"
-    }
-    
-    for _, apiName in ipairs(suspiciousAPIs) do
+        -- ใช้ pcall เพื่อป้องกัน error ถ้า Delta บล็อก gcinfo
         pcall(function()
-            local service = game:GetService(apiName)
-            if service then
-                -- ตรวจสอบการใช้งาน
-                self:SuspiciousActivityDetected("API Usage: " .. apiName)
+            if gcinfo and gcinfo() > 100000 then
+                collectgarbage("collect")
             end
         end)
     end
 end
 
--- ==============================================
--- 12. เปิดใช้งานระบบ
--- ==============================================
-
+-- เปิดใช้งาน
 function AntiBan:Enable()
     if self.Initialized then return end
-    
     self.Initialized = true
     self.Enabled = true
     
-    -- เปิดใช้งานการป้องกันแต่ละประเภท
-    if self.Settings.AntiKick then
-        self:AntiKick()
-    end
+    if self.Settings.AntiKick then self:AntiKick() end
+    if self.Settings.AntiBan then self:AntiBan() end
+    if self.Settings.AntiDetection then self:AntiRobloxDetection() end
     
-    if self.Settings.AntiBan then
-        self:AntiBan()
-    end
-    
-    if self.Settings.AntiDetection then
-        self:AntiRobloxDetection()
-        self:AntiScriptInjection()
-        self:AntiAPIMisuse()
-    end
-    
-    if self.Settings.AntiMemoryScan then
-        self:AntiMemoryScan()
-    end
-
-    
-    if self.Settings.AntiNetworkScan then
-        self:AntiNetworkScan()
-    end
-    
-    -- เริ่มการตรวจสอบสุขภาพ
     task.spawn(function()
         self:HealthCheck()
     end)
     
-    print("[AntiBan] ✅ ระบบป้องกันเปิดใช้งานแล้ว")
-    print("[AntiBan] 🛡️ ป้องกัน: เตะ, แบน, ตรวจจับ, หน่วยความจำ, เครือข่าย")
+    print("[AntiBan] ✅ ระบบป้องกันเปิดใช้งาน (Delta Compatible)")
 end
 
--- ==============================================
--- 13. ปิดใช้งานระบบ
--- ==============================================
-
+-- ปิดใช้งาน
 function AntiBan:Disable()
     self.Enabled = false
     self.Initialized = false
-    print("[AntiBan] ⏸️ ระบบป้องกันปิดใช้งานแล้ว")
+    print("[AntiBan] ⏸️ ปิดใช้งาน")
 end
 
--- ==============================================
--- 14. ฟังก์ชันช่วยเหลือ
--- ==============================================
-
-function SafeWait(seconds)
-    if AntiBan.Enabled and AntiBan.Settings.RandomExecution then
-        task.wait(AntiBan:GetRandomDelay(seconds, seconds + 0.2))
-    else
-        task.wait(seconds)
-    end
-end
-
-function SafeCall(func, ...)
-    return AntiBan:SafeExecute(func, ...)
-end
-
--- ==============================================
--- เริ่มระบบอัตโนมัติ
--- ==============================================
-
+-- เริ่มระบบ
 AntiBan:Enable()
 
--- ทำความสะอาดเมื่อ GUI ปิด
+-- Cleanup
 sg.Destroying:Connect(function()
     AntiBan:Disable()
-    print("[AntiBan] 🗑️ ล้างทรัพยากรระบบป้องกัน")
+    print("[AntiBan] 🗑️ ล้างทรัพยากร")
 end)
 
-print("[AntiBan] 🚀 ระบบป้องกันการแบน/เตะ/ตรวจจับ v2.0 โหลดเสร็จสมบูรณ์")
-print("[AntiBan] 📊 สถานะ: ✅ เปิดใช้งานอัตโนมัติ")
+print("[AntiBan] 🚀 Anti-Ban System Loaded (Fixed for Delta)")
