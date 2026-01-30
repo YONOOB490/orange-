@@ -2341,134 +2341,134 @@ function Clicker:Toggle()
 end
 
 -- UI (LayoutOrder 12 ต่อจาก Full Bright)
-local ClickFrame = Instance.new("Frame")
-ClickFrame.Size = UDim2.new(1, -30, 0, 120)
-ClickFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-ClickFrame.BorderSizePixel = 0
-ClickFrame.LayoutOrder = 12
-ClickFrame.Parent = MainPage
+local ClickerFrame = Instance.new("Frame")
+ClickerFrame.Size = UDim2.new(1, -30, 0, 120)
+ClickerFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+ClickerFrame.BorderSizePixel = 0
+ClickerFrame.LayoutOrder = 12
+ClickerFrame.Parent = MainPage
 
-local ClickStroke = Instance.new("UIStroke", ClickFrame)
-ClickStroke.Color = Color3.fromRGB(70, 70, 120)
-ClickStroke.Thickness = 1
+local ClickerStroke = Instance.new("UIStroke", ClickerFrame)
+ClickerStroke.Color = Color3.fromRGB(70, 70, 120)
+ClickerStroke.Thickness = 1
 
-local ClickTitle = Instance.new("TextLabel")
-ClickTitle.Size = UDim2.new(1, -20, 0, 26)
-ClickTitle.Position = UDim2.new(0, 10, 0, 8)
-ClickTitle.BackgroundTransparency = 1
-ClickTitle.Text = "⚡ AUTO CLICKER"
-ClickTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
-ClickTitle.Font = Enum.Font.GothamBold
-ClickTitle.TextSize = 15
-ClickTitle.TextXAlignment = Enum.TextXAlignment.Left
-ClickTitle.Parent = ClickFrame
+local ClickerTitle = Instance.new("TextLabel")
+ClickerTitle.Size = UDim2.new(1, -20, 0, 26)
+ClickerTitle.Position = UDim2.new(0, 10, 0, 8)
+ClickerTitle.BackgroundTransparency = 1
+ClickerTitle.Text = "⚡ AUTO CLICKER"
+ClickerTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
+ClickerTitle.Font = Enum.Font.GothamBold
+ClickerTitle.TextSize = 15
+ClickerTitle.TextXAlignment = Enum.TextXAlignment.Left
+ClickerTitle.Parent = ClickerFrame
 
-local ClickSub = Instance.new("TextLabel")
-ClickSub.Size = UDim2.new(1, -20, 0, 20)
-ClickSub.Position = UDim2.new(0, 10, 0, 32)
-ClickSub.BackgroundTransparency = 1
-ClickSub.Text = "โหมด Tool (เหมาะกับเกมตี/ฟัน)"
-ClickSub.TextColor3 = Color3.fromRGB(180, 180, 220)
-ClickSуб.Font = Enum.Font.Gotham
-ClickSub.TextSize = 11
-ClickSub.TextXAlignment = Enum.TextXAlignment.Left
-ClickSub.Parent = ClickFrame
+local ClickerSub = Instance.new("TextLabel")
+ClickerSub.Size = UDim2.new(1, -20, 0, 20)
+ClickerSub.Position = UDim2.new(0, 10, 0, 32)
+ClickerSub.BackgroundTransparency = 1
+ClickerSub.Text = "โหมด Tool (เหมาะกับเกมตี/ฟัน)"
+ClickerSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+ClickerSub.Font = Enum.Font.Gotham
+ClickerSub.TextSize = 11
+ClickerSub.TextXAlignment = Enum.TextXAlignment.Left
+ClickerSub.Parent = ClickerFrame
 
 -- ปุ่ม Toggle
-local ClickBtn = Instance.new("TextButton")
-ClickBtn.Size = UDim2.new(0.35, 0, 0, 36)
-ClickBtn.Position = UDim2.new(0, 10, 0, 60)
-ClickBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-ClickBtn.Text = "OFF"
-ClickBtn.TextColor3 = Color3.new(1, 1, 1)
-ClickBtn.Font = Enum.Font.GothamBold
-ClickBtn.TextSize = 14
-ClickBtn.BorderSizePixel = 0
-ClickBtn.Parent = ClickFrame
+local ClickerBtn = Instance.new("TextButton")
+ClickerBtn.Size = UDim2.new(0.35, 0, 0, 36)
+ClickerBtn.Position = UDim2.new(0, 10, 0, 60)
+ClickerBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+ClickerBtn.Text = "OFF"
+ClickerBtn.TextColor3 = Color3.new(1, 1, 1)
+ClickerBtn.Font = Enum.Font.GothamBold
+ClickerBtn.TextSize = 14
+ClickerBtn.BorderSizePixel = 0
+ClickerBtn.Parent = ClickerFrame
 
 -- ปุ่มลดความเร็ว
-local SlowBtn = Instance.new("TextButton")
-SlowBtn.Size = UDim2.new(0.15, 0, 0, 36)
-SlowBtn.Position = UDim2.new(0.4, 0, 0, 60)
-SlowBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
-SlowBtn.Text = "-"
-SlowBtn.TextColor3 = Color3.new(1, 1, 1)
-SlowBtn.Font = Enum.Font.GothamBold
-SlowBtn.TextSize = 18
-SlowBtn.BorderSizePixel = 0
-SlowBtn.Parent = ClickFrame
+local ClickerSlowBtn = Instance.new("TextButton")
+ClickerSlowBtn.Size = UDim2.new(0.15, 0, 0, 36)
+ClickerSlowBtn.Position = UDim2.new(0.4, 0, 0, 60)
+ClickerSlowBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+ClickerSlowBtn.Text = "-"
+ClickerSlowBtn.TextColor3 = Color3.new(1, 1, 1)
+ClickerSlowBtn.Font = Enum.Font.GothamBold
+ClickerSlowBtn.TextSize = 18
+ClickerSlowBtn.BorderSizePixel = 0
+ClickerSlowBtn.Parent = ClickerFrame
 
 -- แสดงความเร็ว
-local SpeedDisplay = Instance.new("TextLabel")
-SpeedDisplay.Size = UDim2.new(0.15, 0, 0, 36)
-SpeedDisplay.Position = UDim2.new(0.57, 0, 0, 60)
-SpeedDisplay.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-SpeedDisplay.Text = tostring(Clicker.Speed)
-SpeedDisplay.TextColor3 = Color3.new(1, 1, 1)
-SpeedDisplay.Font = Enum.Font.GothamBold
-SpeedDisplay.TextSize = 14
-SpeedDisplay.Parent = ClickFrame
+local ClickerSpeedDisplay = Instance.new("TextLabel")
+ClickerSpeedDisplay.Size = UDim2.new(0.15, 0, 0, 36)
+ClickerSpeedDisplay.Position = UDim2.new(0.57, 0, 0, 60)
+ClickerSpeedDisplay.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+ClickerSpeedDisplay.Text = tostring(Clicker.Speed)
+ClickerSpeedDisplay.TextColor3 = Color3.new(1, 1, 1)
+ClickerSpeedDisplay.Font = Enum.Font.GothamBold
+ClickerSpeedDisplay.TextSize = 14
+ClickerSpeedDisplay.Parent = ClickerFrame
 
 -- ปุ่มเพิ่มความเร็ว
-local FastBtn = Instance.new("TextButton")
-FastBtn.Size = UDim2.new(0.15, 0, 0, 36)
-FastBtn.Position = UDim2.new(0.75, 0, 0, 60)
-FastBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
-FastBtn.Text = "+"
-FastBtn.TextColor3 = Color3.new(1, 1, 1)
-FastBtn.Font = Enum.Font.GothamBold
-FastBtn.TextSize = 18
-FastBtn.BorderSizePixel = 0
-FastBtn.Parent = ClickFrame
+local ClickerFastBtn = Instance.new("TextButton")
+ClickerFastBtn.Size = UDim2.new(0.15, 0, 0, 36)
+ClickerFastBtn.Position = UDim2.new(0.75, 0, 0, 60)
+ClickerFastBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+ClickerFastBtn.Text = "+"
+ClickerFastBtn.TextColor3 = Color3.new(1, 1, 1)
+ClickerFastBtn.Font = Enum.Font.GothamBold
+ClickerFastBtn.TextSize = 18
+ClickerFastBtn.BorderSizePixel = 0
+ClickerFastBtn.Parent = ClickerFrame
 
 -- Hover Effects
-ClickBtn.MouseEnter:Connect(function()
+ClickerBtn.MouseEnter:Connect(function()
     local color = Clicker.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
-    TweenService:Create(ClickBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+    TweenService:Create(ClickerBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
 end)
-ClickBtn.MouseLeave:Connect(function()
+ClickerBtn.MouseLeave:Connect(function()
     local color = Clicker.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
-    TweenService:Create(ClickBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+    TweenService:Create(ClickerBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
 end)
 
 -- กด Toggle
-ClickBtn.MouseButton1Click:Connect(function()
+ClickerBtn.MouseButton1Click:Connect(function()
     local state = Clicker:Toggle()
     if state then
-        ClickBtn.Text = "ON"
-        ClickBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
-        ClickTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        ClickerBtn.Text = "ON"
+        ClickerBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        ClickerTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
     else
-        ClickBtn.Text = "OFF"
-        ClickBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-        ClickTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
+        ClickerBtn.Text = "OFF"
+        ClickerBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        ClickerTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
     end
 end)
 
 -- ปรับความเร็ว
-SlowBtn.MouseButton1Click:Connect(function()
+ClickerSlowBtn.MouseButton1Click:Connect(function()
     Clicker.Speed = math.max(1, Clicker.Speed - 1)
-    SpeedDisplay.Text = tostring(Clicker.Speed)
+    ClickerSpeedDisplay.Text = tostring(Clicker.Speed)
 end)
 
-FastBtn.MouseButton1Click:Connect(function()
+ClickerFastBtn.MouseButton1Click:Connect(function()
     Clicker.Speed = math.min(30, Clicker.Speed + 1)
-    SpeedDisplay.Text = tostring(Clicker.Speed)
+    ClickerSpeedDisplay.Text = tostring(Clicker.Speed)
 end)
 
 -- Hover ปุ่ม +/- 
-SlowBtn.MouseEnter:Connect(function()
-    TweenService:Create(SlowBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+ClickerSlowBtn.MouseEnter:Connect(function()
+    TweenService:Create(ClickerSlowBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
 end)
-SlowBtn.MouseLeave:Connect(function()
-    TweenService:Create(SlowBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+ClickerSlowBtn.MouseLeave:Connect(function()
+    TweenService:Create(ClickerSlowBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
 end)
 
-FastBtn.MouseEnter:Connect(function()
-    TweenService:Create(FastBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 170, 100)}):Play()
+ClickerFastBtn.MouseEnter:Connect(function()
+    TweenService:Create(ClickerFastBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 170, 100)}):Play()
 end)
-FastBtn.MouseLeave:Connect(function()
-    TweenService:Create(FastBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 140, 80)}):Play()
+ClickerFastBtn.MouseLeave:Connect(function()
+    TweenService:Create(ClickerFastBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 140, 80)}):Play()
 end)
 
 -- Cleanup
