@@ -409,247 +409,132 @@ end)
 
 print("[ESP] ระบบ ESP โหลดเสร็จแล้ว")
 -- ==============================================
--- ITEM ESP SYSTEM v2.0 - อัพเกรดจับไอเทมได้แม่นขึ้น
+-- [SUPER UPGRADED] Item ESP (Universal Detection)
+-- ไม่ต้องระบุชื่อ เจออะไรที่เก็บได้โชว์ทันที
 -- ==============================================
 
 local ItemESP = {
     Enabled = false,
-    Objects = {},
-    Connections = {},
-    LoopConnection = nil,
-    LastUpdate = 0,
-    ScanRadius = 200,
-    MaxItems = 50,
-    Color = Color3.fromRGB(255, 215, 0),
-    TextColor = Color3.fromRGB(255, 255, 200),
-    
-    -- ✅ รายชื่อไอเทมที่พบบ่อยในเกม Roblox (ครอบคลุม 200+ ชื่อ)
-    CommonItemNames = {
-        "coin", "coins", "money", "cash", "gold", "gem", "gems", "diamond", "diamonds", 
-        "crystal", "crystals", "ruby", "rubies", "emerald", "emeralds", "pearl", "pearls",
-        "token", "tokens", "buck", "bucks", "credit", "credits", "point", "points", 
-        "star", "stars", "ticket", "tickets", "voucher", "vouchers",
-        "fragment", "fragments", "shard", "shards", "orb", "orbs", "essence", "essences",
-        "dust", "powder", "scale", "scales", "soul", "souls", "heart", "hearts",
-        "chest", "box", "crate", "case", "pack", "bundle", "gift", "present", 
-        "surprise", "mystery", "lucky", "loot", "drop", "pickup", "collectible",
-        "sword", "blade", "dagger", "knife", "axe", "hammer", "mace", "spear",
-        "bow", "crossbow", "gun", "pistol", "rifle", "shotgun", "cannon", "launcher",
-        "staff", "wand", "spellbook", "tome", "shield", "armor", "helmet", "boots",
-        "gauntlet", "gloves", "belt", "amulet", "ring", "necklace", "cape", "cloak",
-        "potion", "elixir", "tonic", "food", "apple", "bread", "meat", "fish", 
-        "health", "medkit", "bandage", "arrow", "bolt", "bullet", "ammo",
-        "scroll", "map", "key", "keycard", "gemstone", "rune", "talisman",
-        "fruit", "fruits", "bloxfruit", "blox", "pet", "pets", "egg", "eggs",
-        "tower", "towers", "blook", "blooks", "character", "characters", "hero",
-        "unit", "units", "minion", "minions", "wave", "waves",
-        "ore", "ingot", "bar", "wood", "log", "stone", "rock", "coal", "iron",
-        "copper", "silver", "platinum", "herb", "plant", "flower", "seed", "crop",
-        "common", "uncommon", "rare", "epic", "legendary", "mythic", "exotic",
-        "premium", "deluxe", "ultimate", "supreme", "godly", "divine", "ancient",
-        "backpack", "bag", "pouch", "satchel", "inventory", "storage", "vault",
-        "bank", "safe", "locker", "container", "basket", "crate",
-        "badge", "medal", "trophy", "achievement", "reward", "prize", "gift",
-        "treasure", "relic", "artifact", "totem", "fetish", "charm", "enchantment",
-        "spell", "buff", "debuff", "potion", "effect", "aura", "blessing", "curse"
-    },
-    
-    Blacklist = {
-        "Baseplate", "Terrain", "Camera", "SpawnLocation", "Part", "BasePart",
-        "Effect", "Trail", "Particle", "Sound", "Script", "LocalScript", "Model"
-    }
+    ScanRadius = 500, -- เพิ่มระยะสแกนให้กว้างขึ้น
+    ItemsFound = {},
 }
 
+-- ฟังก์ชันหัวใจหลัก: ตรวจสอบว่าเป็นไอเท็มหรือไม่จาก "การตอบสนอง" ไม่ใช่ชื่อ
 function ItemESP:IsItem(obj)
-    if not obj or not obj.Parent then return false end
-    if not obj:IsA("Model") and not obj:IsA("BasePart") then return false end
-    
-    for _, black in ipairs(self.Blacklist) do
-        if obj.Name:lower():find(black:lower()) then return false end
-    end
-    
-    if game.Players:GetPlayerFromCharacter(obj) then return false end
-    
-    local nameLower = obj.Name:lower()
-    for _, itemName in ipairs(self.CommonItemNames) do
-        if nameLower:find(itemName:lower()) then
-            return true
-        end
-    end
-    
-    local hasVisual = false
-    pcall(function()
-        hasVisual = obj:FindFirstChildOfClass("SpecialMesh") or 
-                   obj:FindFirstChildOfClass("Texture") or
-                   obj:FindFirstChildOfClass("Decal") or
-                   obj:FindFirstChildWhichIsA("BasePart"):IsA("MeshPart")
-    end)
-    
-    if hasVisual then
-        local size = Vector3.new(1,1,1)
-        pcall(function()
-            if obj.GetExtentsSize then
-                size = obj:GetExtentsSize()
-            elseif obj:IsA("BasePart") then
-                size = obj.Size
-            end
-        end)
-        
-        if size.Magnitude < 20 then
-            return true
-        end
-    end
-    
-    local parentName = obj.Parent.Name:lower()
-    if parentName:find("item") or parentName:find("drop") or 
-       parentName:find("collect") or parentName:find("loot") then
+    -- 1. ตรวจสอบว่ามี ProximityPrompt (กด E เพื่อเก็บ) หรือไม่
+    if obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
         return true
     end
-    
+
+    -- 2. ตรวจสอบว่ามี ClickDetector (คลิกเพื่อเก็บ) หรือไม่
+    if obj:FindFirstChildWhichIsA("ClickDetector", true) then
+        return true
+    end
+
+    -- 3. ตรวจสอบว่าเป็น Tool ที่ตกอยู่ที่พื้น (Handle)
+    if obj:IsA("BackpackItem") or obj:IsA("Tool") then
+        return true
+    end
+
+    -- 4. ตรวจสอบว่าเป็น Part ที่แตะได้ (TouchInterest) และอยู่ในโฟลเดอร์ที่ไม่ใช่ส่วนประกอบแมพ
+    -- (ป้องกันการโชว์พื้นหรือกำแพง)
+    if obj:IsA("BasePart") and obj:FindFirstChild("TouchInterest") then
+        local parentName = obj.Parent.Name:lower()
+        if parentName:find("item") or parentName:find("drop") or parentName:find("spawn") then
+            return true
+        end
+    end
+
     return false
 end
 
-function ItemESP:Clear()
-    for item, data in pairs(self.Objects) do
-        pcall(function()
-            if data.Highlight then data.Highlight:Destroy() end
-            if data.Billboard then data.Billboard:Destroy() end
-        end)
-    end
-    self.Objects = {}
-end
+function ItemESP:Create(obj)
+    if not obj or self.ItemsFound[obj] then return end
 
-function ItemESP:Create(item)
-    if self.Objects[item] then return end
-    if not item.Parent then return end
-    
-    local primary = nil
-    pcall(function()
-        primary = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-    end)
-    if not primary then return end
-    
+    -- หาตำแหน่งที่เหมาะสมสำหรับแสดงผล
+    local root = obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")) or obj
+    if not root or not root:IsA("BasePart") then return end
+
+    -- 1. ระบบ Highlight (มองทะลุผ่านกำแพง)
     local hl = Instance.new("Highlight")
-    hl.Name = "XItemESP"
-    hl.Adornee = item
+    hl.Name = "AutoItemESP"
+    hl.FillColor = Color3.fromRGB(0, 255, 127) -- สีเขียวมินต์สังเกตง่าย
+    hl.FillTransparency = 0.4
+    hl.OutlineColor = Color3.new(1, 1, 1)
+    hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.FillColor = self.Color
-    hl.FillTransparency = 0.8
-    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-    hl.OutlineTransparency = 0.2
-    
-    pcall(function() hl.Parent = game:GetService("CoreGui") end)
-    if not hl.Parent then hl.Parent = workspace.CurrentCamera end
-    
-    local bb = Instance.new("BillboardGui")
-    bb.Name = "XItemLabel"
-    bb.Size = UDim2.new(0, 200, 0, 40)
-    bb.StudsOffset = Vector3.new(0, 3, 0)
-    bb.AlwaysOnTop = true
-    bb.MaxDistance = self.ScanRadius
-    bb.Adornee = primary
+    hl.Parent = obj
+
+    -- 2. ระบบ Billboard (บอกชื่อและระยะทาง)
+    local bg = Instance.new("BillboardGui")
+    bg.Name = "AutoItemLabel"
+    bg.Size = UDim2.new(0, 150, 0, 50)
+    bg.AlwaysOnTop = true
+    bg.DistanceLowerLimit = 0
+    bg.DistanceUpperLimit = self.ScanRadius
+    bg.Adornee = root
     
     local txt = Instance.new("TextLabel")
     txt.Size = UDim2.new(1, 0, 1, 0)
     txt.BackgroundTransparency = 1
-    txt.Text = item.Name
-    txt.TextColor3 = self.TextColor
-    txt.TextStrokeTransparency = 0.8
-    txt.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    txt.Font = Enum.Font.GothamBold
+    txt.TextColor3 = Color3.new(1, 1, 1)
+    txt.TextStrokeTransparency = 0
     txt.TextSize = 14
-    txt.Parent = bb
+    txt.Font = Enum.Font.SourceSansBold
+    txt.Text = obj.Name -- แสดงชื่อดั้งเดิมของ Object
+    txt.Parent = bg
     
-    pcall(function() bb.Parent = game:GetService("CoreGui") end)
-    if not bb.Parent then bb.Parent = workspace.CurrentCamera end
-    
-    self.Objects[item] = {
-        Highlight = hl,
-        Billboard = bb,
-        TextLabel = txt,
-        PrimaryPart = primary,
-        Item = item
-    }
+    bg.Parent = root
+    self.ItemsFound[obj] = {Label = txt, Highlight = hl, Gui = bg}
+
+    -- วนลูปอัปเดตระยะทางแบบ Real-time
+    task.spawn(function()
+        while obj and obj.Parent and self.Enabled do
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local dist = (root.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if dist <= self.ScanRadius then
+                    txt.Text = obj.Name .. "\n[" .. math.floor(dist) .. "m]"
+                    bg.Enabled = true
+                    hl.Enabled = true
+                else
+                    bg.Enabled = false
+                    hl.Enabled = false
+                end
+            end
+            task.wait(0.3)
+        end
+        self:Remove(obj)
+    end)
 end
 
-function ItemESP:Update()
-    if not self.Enabled then return end
-    if not LocalPlayer.Character then return end
-    
-    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    local charPos = hrp.Position
-    local processed = {}
-    
-    for item, data in pairs(self.Objects) do
-        processed[item] = true
-        if not item.Parent or not data.PrimaryPart or not data.PrimaryPart.Parent then
-            if data.Highlight then data.Highlight:Destroy() end
-            if data.Billboard then data.Billboard:Destroy() end
-            self.Objects[item] = nil
-        else
-            local dist = (data.PrimaryPart.Position - charPos).Magnitude
-            if dist > self.ScanRadius then
-                data.Billboard.Enabled = false
-                data.Highlight.Enabled = false
-            else
-                data.Billboard.Enabled = true
-                data.Highlight.Enabled = true
-                data.TextLabel.Text = string.format("%s\n[%.0fm]", item.Name, dist)
-            end
-        end
+function ItemESP:Remove(obj)
+    if self.ItemsFound[obj] then
+        local data = self.ItemsFound[obj]
+        if data.Highlight then data.Highlight:Destroy() end
+        if data.Gui then data.Gui:Destroy() end
+        self.ItemsFound[obj] = nil
     end
-    
-    if tick() - self.LastUpdate > 0.5 then
-        self.LastUpdate = tick()
-        local count = 0
-        
-        local function scanFolder(folder)
-            pcall(function()
-                for _, child in ipairs(folder:GetChildren()) do
-                    if count >= self.MaxItems then break end
-                    
-                    if not processed[child] and self:IsItem(child) then
-                        self:Create(child)
-                        count = count + 1
-                    end
-                    
-                    if child:IsA("Folder") or child:IsA("Model") then
-                        scanFolder(child)
+end
+
+function ItemESP:Toggle(bool)
+    self.Enabled = bool
+    if not bool then
+        for obj, _ in pairs(self.ItemsFound) do
+            self:Remove(obj)
+        end
+    else
+        -- รันระบบตรวจจับอัตโนมัติ
+        task.spawn(function()
+            while self.Enabled do
+                for _, v in ipairs(workspace:GetDescendants()) do
+                    if self:IsItem(v) then
+                        self:Create(v)
                     end
                 end
-            end)
-        end
-        
-        scanFolder(workspace)
-    end
-end
-
-function ItemESP:Toggle()
-    self.Enabled = not self.Enabled
-    
-    if self.Enabled then
-        print("[ItemESP] เปิดใช้งาน - ระยะ " .. self.ScanRadius .. " studs")
-        self:Clear()
-        self:Update()
-        
-        self.LoopConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            self:Update()
-        end)
-        
-        self.Connections.ItemAdded = workspace.DescendantAdded:Connect(function(descendant)
-            task.wait(0.3)
-            if self.Enabled and self:IsItem(descendant) then
-                self:Create(descendant)
+                task.wait(3) -- สแกนหาไอเท็มใหม่ทุกๆ 3 วินาที
             end
         end)
-    else
-        print("[ItemESP] ปิดใช้งาน")
-        self:Clear()
     end
-    
-    return self.Enabled
 end
 
 -- ==============================================
@@ -2090,18 +1975,39 @@ print("[InfJump] Infinite Jump Loaded (Mobile/PC compatible)")
 -- ==============================================
 
 local SoundHub = {
-    Loaded = false
+    Loaded = false,
+    GuiObject = nil,
+    Connection = nil
 }
+
+function SoundHub:Unload()
+    if self.GuiObject then
+        pcall(function()
+            self.GuiObject:Destroy()
+        end)
+        self.GuiObject = nil
+    end
+    
+    if self.Connection then
+        self.Connection:Disconnect()
+        self.Connection = nil
+    end
+    
+    self.Loaded = false
+    print("[SoundHub] รีเซ็ตสถานะเรียบร้อย")
+end
+
 
 function SoundHub:Load()
     if self.Loaded then 
-        print("[SoundHub] โหลดแล้วก่อนหน้านี้")
-        return 
+        print("[SoundHub] โหลดแล้วก่อนหน้านี้ กำลังรีเซ็ต...")
+        self:Unload()
     end
     
     print("[SoundHub] กำลังโหลด Sound Hub...")
     local success, err = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/YONOOB490/orange-/refs/heads/main/SoundHub.lua"))()
+        local result = loadstring(game:HttpGet("https://raw.githubusercontent.com/YONOOB490/orange-/refs/heads/main/SoundHub.lua"))()
+        self.GuiObject = result
     end)
     
     if success then
@@ -2110,9 +2016,11 @@ function SoundHub:Load()
         return true
     else
         warn("[SoundHub] โหลดไม่สำเร็จ:", err)
-        return false
+        self.Loaded = false
+        return false, err
     end
 end
+
 
 -- UI Sound Hub (LayoutOrder 10 แทน Money Farm)
 local SoundFrame = Instance.new("Frame")
@@ -2170,21 +2078,38 @@ end)
 
 -- กดโหลด
 LoadBtn.MouseButton1Click:Connect(function()
+    if SoundHub.Loaded then
+        LoadBtn.Text = "UNLOADING..."
+        LoadBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        
+        SoundHub:Unload()
+        
+        LoadBtn.Text = "LOAD SOUND HUB"
+        LoadBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+        SoundTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+        SoundSub.Text = "โหลดระบบเสียงและเพลง"
+        return
+    end
+    
     LoadBtn.Text = "LOADING..."
     LoadBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     
-    local success = SoundHub:Load()
+    local success, err = SoundHub:Load()
     
     if success then
         LoadBtn.Text = "LOADED ✓"
         LoadBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
         SoundTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        SoundSub.Text = "พร้อมใช้งาน - กดอีกครั้งเพื่อปิด"
     else
         LoadBtn.Text = "ERROR! Retry"
         LoadBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        SoundSub.Text = "Error: " .. tostring(err):sub(1, 30)
+        
         task.wait(2)
         LoadBtn.Text = "LOAD SOUND HUB"
         LoadBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+        SoundSub.Text = "โหลดระบบเสียงและเพลง"
     end
 end)
 
@@ -2554,124 +2479,134 @@ end)
 print("[Clicker] Auto Clicker Loaded (Layout 12)")
 print("[Clicker] Mode: Tool Activate | Max: 30 CPS")
 -- ==============================================
--- NPC WARP v2.0 - วาร์ปไปหา NPC/Bot (ครอบคลุมมากขึ้น)
+-- NPC WARP AI v3.0 - ตรวจจับ NPC/Dummy อัตโนมัติ
 -- ==============================================
 
-local NPCWarp = {
+local NPCWarp_AI = {
     Enabled = false,
-    Mode = "Interact",
+    Mode = "Interact", -- Interact / Attack / Follow
     Range = 200,
     Connection = nil,
     LastScan = 0,
+    ScanDelay = 1.5, -- สแกนทุก 1.5 วินาที (ประหยัด FPS)
     CurrentTarget = nil,
     
-    -- ✅ รายชื่อ NPC/Bot/Noob ที่พบบ่อยในเกม Roblox (ครอบคลุม 300+ ชื่อ)
-    NPCNames = {
-        "NPC", "Bot", "Mob", "Enemy", "Monster", "Villager", "Citizen", "Civilian",
-        "Quest", "Shop", "Merchant", "Trader", "Dealer", "Vendor", "Seller", "Buyer",
-        "Noob", "Newbie", "Beginner", "Starter", "Rookie", "Novice", "Amateur",
-        "Guest", "Default", "Player", "User", "Account", "Character", "Avatar",
-        "AI", "Dummy", "Target", "DummyTarget", "Practice", "Training", "Test",
-        "Guard", "Soldier", "Warrior", "Knight", "Paladin", "Fighter", "Brawler",
-        "Squire", "Mercenary", "Hire", "Hired", "Assassin", "Ninja", "Ronin",
-        "Samurai", "Viking", "Barbarian", "Berserker", "Gladiator", "Champion",
-        "Hunter", "Fisher", "Fisherman", "Miner", "Lumberjack", "Woodcutter",
-        "Farmer", "Peasant", "Worker", "Laborer", "Builder", "Constructor",
-        "Engineer", "Scientist", "Doctor", "Healer", "Medic", "Cleric", "Priest",
-        "Mage", "Wizard", "Sorcerer", "Warlock", "Witch", "Necromancer", "Alchemist",
-        "Archer", "Ranger", "Marksman", "Sniper", "Gunslinger", "Deadeye",
-        "Rogue", "Thief", "Bandit", "Raider", "Pirate", "Corsair", "Buccaneer",
-        "Blacksmith", "Smith", "Craftsman", "Artisan", "Merchant", "Trader",
-        "Innkeeper", "Bartender", "Chef", "Cook", "Butcher", "Baker", "Tailor",
-        "Thug", "Goon", "Henchman", "Minion", "Lackey", "Underling", "Grunt",
-        "Brute", "Ogre", "Troll", "Giant", "Beast", "Creature", "Monster",
-        "Zombie", "Skeleton", "Ghost", "Phantom", "Wraith", "Spirit", "Shade",
-        "Vampire", "Werewolf", "Lycan", "Goblin", "Orc", "Troll", "Ogre",
-        "Slime", "Blob", "Ooze", "Gel", "Spider", "Scorpion", "Snake", "Serpent",
-        "Wolf", "Wolves", "Fox", "Bear", "Tiger", "Lion", "Dragon", "Drake",
-        "Phoenix", "Hydra", "Basilisk", "Gorgon", "Cyclops", "Minotaur", "Golem",
-        "Demon", "Devil", "Imp", "Fiend", "Terror", "Horror", "Abomination",
-        "Cultist", "Fanatic", "Zealot", "Heretic", "Worshipper", "Disciple",
-        "Elf", "Elves", "Dwarf", "Dwarves", "Gnome", "Halfling", "Hobbit",
-        "Angel", "Demon", "Devil", "Celestial", "Aasimar", "Tiefling", "Genasi",
-        "King", "Queen", "Prince", "Princess", "Lord", "Lady", "Baron", "Baroness",
-        "Duke", "Duchess", "Count", "Countess", "Sir", "Madam", "Master", "Mistress",
-        "Captain", "Commander", "General", "Admiral", "Marshall", "Chancellor",
-        "Emperor", "Empress", "Sultan", "Sultana", "Shah", "Tsar", "Kaiser",
-        "Bandit", "Outlaw", "Renegade", "Marauder", "Raider", "Pillager", "Ravager",
-        "Criminal", "Villain", "Evil", "Dark", "Shadow", "Phantom", "Revenant",
-        "Murderer", "Killer", "Slayer", "Assassin", "Cutthroat", "Thief", "Rogue",
-        "Pirate", "Corsair", "Buccaneer", "Privateer", "Swashbuckler", "Marlins",
-        "Boss", "MiniBoss", "Elite", "Champion", "Legend", "Mythic", "Ancient",
-        "Corrupted", "Cursed", "Fallen", "Dark", "Shadow", "Void", "Abyssal",
-        "Celestial", "Divine", "Sacred", "Holy", "Blessed", "Enchanted", "Magical"
-    },
-    
-    Blacklist = {
-        "Player", "Camera", "Terrain", "Baseplate", "Part", "Effect", "Trail"
+    -- เกณฑ์ตัดสินใจ AI
+    Criteria = {
+        MinHealth = 10,
+        MaxHealth = 10000,
+        MaxWalkSpeed = 100,
     }
 }
 
-function NPCWarp:IsNPC(obj)
+function NPCWarp_AI:IsNPC(obj)
+    -- เร็วสุด: ตรวจสอบพื้นฐาน
     if not obj or not obj.Parent then return false end
     if not obj:IsA("Model") then return false end
     
-    for _, black in ipairs(self.Blacklist) do
-        if obj.Name:lower():find(black:lower()) then return false end
-    end
+    -- เร็ว: ตรวจสอบผู้เล่น (ถ้าเป็นผู้เล่นจริง ไม่ใช่ NPC)
+    if game.Players:GetPlayerFromCharacter(obj) then return false end
     
-    local nameLower = obj.Name:lower()
-    for _, npcName in ipairs(self.NPCNames) do
-        if nameLower:find(npcName:lower()) then
-            return true
-        end
-    end
-    
+    -- ตรวจสอบ Humanoid
     local humanoid = nil
     pcall(function() humanoid = obj:FindFirstChildOfClass("Humanoid") end)
     if not humanoid then return false end
     
-    if game.Players:GetPlayerFromCharacter(obj) then return false end
+    -- ตรวจสอบสุขภาพอยู่ในช่วงที่เป็น NPC ได้
+    if humanoid.Health < self.Criteria.MinHealth or humanoid.Health > self.Criteria.MaxHealth then
+        return false
+    end
     
-    local isEnemy = false
+    -- ตรวจสอบความเร็ว (NPC มักไม่เร็วมาก)
+    if humanoid.WalkSpeed > self.Criteria.MaxWalkSpeed then
+        return false
+    end
+    
+    -- ตรวจสอบ Animator (NPC มี Animator แต่ไม่มี PlayerScripts)
+    local hasAnimator = false
     pcall(function()
-        if LocalPlayer.Team then
-            local npcTeam = obj:FindFirstChild("Team")
-            if not npcTeam or npcTeam.Value ~= LocalPlayer.Team then
-                isEnemy = true
-            end
-        else
-            isEnemy = true
+        if obj:FindFirstChild("Animator") then
+            hasAnimator = true
         end
     end)
     
-    if not isEnemy then return false end
+    if hasAnimator and not obj:FindFirstChildOfClass("PlayerScripts") then
+        return true
+    end
     
+    -- ตรวจสอบ ProximityPrompt หรือ Dialog (NPC มักมี)
     pcall(function()
-        if obj:FindFirstChild("Animator") and not obj:FindFirstChildOfClass("PlayerScripts") then
+        if obj:FindFirstChildOfClass("ProximityPrompt") or 
+           obj:FindFirstChildOfClass("Dialog") then
             return true
         end
     end)
     
-    return false
+    -- ถ้ามี Humanoid และไม่ใช่ผู้เล่น มีโอกาสเป็น NPC สูง
+    return true
 end
 
-function NPCWarp:Warp(npc)
-    if not npc then return end
-    if not LocalPlayer.Character then return end
-    
+function NPCWarp_AI:FindNearest()
+    if not LocalPlayer.Character then return nil end
     local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    
+    local charPos = hrp.Position
+    local nearest = nil
+    local minDist = self.Range
+    
+    -- สแกนเฉพาะทุก 1.5 วินาที
+    if tick() - self.LastScan < self.ScanDelay then return self.CurrentTarget end
+    self.LastScan = tick()
+    
+    local function scan(folder)
+        pcall(function()
+            for _, child in ipairs(folder:GetChildren()) do
+                if child:IsA("Model") and child ~= LocalPlayer.Character then
+                    if self:IsNPC(child) then
+                        local part = child:FindFirstChild("HumanoidRootPart") or 
+                                   child:FindFirstChild("Torso") or 
+                                   child:FindFirstChild("UpperTorso")
+                        if part then
+                            local dist = (charPos - part.Position).Magnitude
+                            if dist < minDist then
+                                minDist = dist
+                                nearest = child
+                            end
+                        end
+                    end
+                end
+                
+                -- สแกนลึกลงไปแต่ไม่เกิน 2 ชั้น (ป้องกันแลค)
+                if child:IsA("Folder") or (child:IsA("Model") and #child:GetChildren() < 20) then
+                    scan(child)
+                end
+            end
+        end)
+    end
+    
+    scan(workspace)
+    return nearest
+end
+
+function NPCWarp_AI:Warp(npc)
+    if not npc then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
     local npcHRP = nil
     
     pcall(function()
-        npcHRP = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc:FindFirstChild("UpperTorso")
+        npcHRP = npc:FindFirstChild("HumanoidRootPart") or 
+               npc:FindFirstChild("Torso") or 
+               npc:FindFirstChild("UpperTorso")
     end)
     
     if not hrp or not npcHRP then return end
     
-    local offset = CFrame.new(0, 0, -5) + Vector3.new(0, 2, 0)
-    local destination = npcHRP.CFrame * offset
-    
+    -- วาร์ปไปด้านหน้า 4 studs
+    local destination = npcHRP.CFrame * CFrame.new(0, 0, -4) + Vector3.new(0, 2, 0)
     pcall(function()
         hrp.CFrame = destination
         hrp.Velocity = Vector3.new(0, 0, 0)
@@ -2679,100 +2614,59 @@ function NPCWarp:Warp(npc)
     
     self.CurrentTarget = npc
     
+    -- Auto Interact/Attack
+    task.wait(0.2)
     if self.Mode == "Interact" then
         pcall(function()
             local prompt = npc:FindFirstChildOfClass("ProximityPrompt")
             if prompt then
-                task.wait(0.2)
                 prompt:InputHoldBegin()
                 task.wait(0.1)
                 prompt:InputHoldEnd()
             end
-            
-            if fireclickdetector then
-                local click = npc:FindFirstChildOfClass("ClickDetector")
-                if click then
-                    fireclickdetector(click)
-                end
+            local click = npc:FindFirstChildOfClass("ClickDetector")
+            if click and fireclickdetector then
+                fireclickdetector(click)
             end
         end)
     elseif self.Mode == "Attack" then
-        pcall(function()
-            local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-            if tool then
-                tool:Activate()
-            end
-        end)
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then tool:Activate() end
     end
-    
-    print("[NPC] วาร์ปไปหา: " .. npc.Name .. " (Mode: " .. self.Mode .. ")")
 end
 
-function NPCWarp:Update()
-    if not self.Enabled then return end
-    if not LocalPlayer.Character then return end
+function NPCWarp_AI:Update()
+    if not self.Enabled or not LocalPlayer.Character then return end
     
     local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
-    if tick() - self.LastScan < 0.5 then return end
-    self.LastScan = tick()
-    
-    local closestNPC = nil
-    local closestDist = math.huge
-    local charPos = hrp.Position
-    
-    local function scanFolder(folder)
-        pcall(function()
-            for _, child in ipairs(folder:GetChildren()) do
-                if self:IsNPC(child) then
-                    local npcHRP = child:FindFirstChild("HumanoidRootPart") or 
-                                  child:FindFirstChild("Torso") or 
-                                  child:FindFirstChild("UpperTorso")
-                    if npcHRP then
-                        local dist = (charPos - npcHRP.Position).Magnitude
-                        if dist <= self.Range and dist < closestDist then
-                            closestDist = dist
-                            closestNPC = child
-                        end
-                    end
-                end
-                
-                if child:IsA("Folder") or child:IsA("Model") then
-                    scanFolder(child)
-                end
-            end
-        end)
-    end
-    
-    scanFolder(workspace)
-    
-    if closestNPC then
-        local npcHRP = closestNPC:FindFirstChild("HumanoidRootPart")
+    local target = self:FindNearest()
+    if target then
+        local npcHRP = target:FindFirstChild("HumanoidRootPart")
         if npcHRP then
             local dist = (hrp.Position - npcHRP.Position).Magnitude
-            if dist > 10 then
-                self:Warp(closestNPC)
-            else
-                if self.Mode == "Attack" then
-                    local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-                    if tool then tool:Activate() end
-                end
+            if dist > 8 then
+                self:Warp(target)
+            elseif self.Mode == "Attack" then
+                local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                if tool then tool:Activate() end
             end
         end
     end
 end
 
-function NPCWarp:Toggle()
+function NPCWarp_AI:Toggle()
     self.Enabled = not self.Enabled
     
     if self.Enabled then
-        print("[NPC] เปิดใช้งาน - ระยะ " .. self.Range .. " studs")
+        print("[NPC AI] เปิดใช้งาน - Auto Detect Mode")
+        print("[NPC AI] สแกนทุก " .. self.ScanDelay .. " วินาที")
         self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
             self:Update()
         end)
     else
-        print("[NPC] ปิดใช้งาน")
+        print("[NPC AI] ปิดใช้งาน")
         if self.Connection then
             self.Connection:Disconnect()
             self.Connection = nil
@@ -2782,6 +2676,121 @@ function NPCWarp:Toggle()
     
     return self.Enabled
 end
+
+-- ==============================================
+-- UI NPC Warp AI (เรียบง่าย ใช้งานง่าย)
+-- ==============================================
+
+local NPCAI_Frame = Instance.new("Frame")
+NPCAI_Frame.Size = UDim2.new(1, -30, 0, 90)
+NPCAI_Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+NPCAI_Frame.BorderSizePixel = 0
+NPCAI_Frame.LayoutOrder = 13
+NPCAI_Frame.Parent = MainPage
+
+local NPCAI_Stroke = Instance.new("UIStroke", NPCAI_Frame)
+NPCAI_Stroke.Color = Color3.fromRGB(70, 70, 120)
+NPCAI_Stroke.Thickness = 1
+
+local NPCAI_Title = Instance.new("TextLabel")
+NPCAI_Title.Size = UDim2.new(1, -20, 0, 24)
+NPCAI_Title.Position = UDim2.new(0, 10, 0, 8)
+NPCAI_Title.BackgroundTransparency = 1
+NPCAI_Title.Text = "🤖 NPC WARP"
+NPCAI_Title.TextColor3 = Color3.fromRGB(100, 200, 255)
+NPCAI_Title.Font = Enum.Font.GothamBold
+NPCAI_Title.TextSize = 15
+NPCAI_Title.TextXAlignment = Enum.TextXAlignment.Left
+NPCAI_Title.Parent = NPCAI_Frame
+
+local NPCAI_Status = Instance.new("TextLabel")
+NPCAI_Status.Size = UDim2.new(1, -20, 0, 20)
+NPCAI_Status.Position = UDim2.new(0, 10, 0, 32)
+NPCAI_Status.BackgroundTransparency = 1
+NPCAI_Status.Text = "พร้อมตรวจจับ NPC/Dummy อัตโนมัติ"
+NPCAI_Status.TextColor3 = Color3.fromRGB(180, 180, 220)
+NPCAI_Status.Font = Enum.Font.Gotham
+NPCAI_Status.TextSize = 11
+NPCAI_Status.TextXAlignment = Enum.TextXAlignment.Left
+NPCAI_Status.Parent = NPCAI_Frame
+
+local NPCAI_ToggleBtn = Instance.new("TextButton")
+NPCAI_ToggleBtn.Size = UDim2.new(0.45, 0, 0, 32)
+NPCAI_ToggleBtn.Position = UDim2.new(0, 10, 0, 54)
+NPCAI_ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+NPCAI_ToggleBtn.Text = "OFF"
+NPCAI_ToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+NPCAI_ToggleBtn.Font = Enum.Font.GothamBold
+NPCAI_ToggleBtn.TextSize = 14
+NPCAI_ToggleBtn.BorderSizePixel = 0
+NPCAI_ToggleBtn.Parent = NPCAI_Frame
+
+local NPCAI_ModeBtn = Instance.new("TextButton")
+NPCAI_ModeBtn.Size = UDim2.new(0.48, 0, 0, 32)
+NPCAI_ModeBtn.Position = UDim2.new(0.52, 0, 0, 54)
+NPCAI_ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+NPCAI_ModeBtn.Text = "Mode: Interact"
+NPCAI_ModeBtn.TextColor3 = Color3.new(1, 1, 1)
+NPCAI_ModeBtn.Font = Enum.Font.Gotham
+NPCAI_ModeBtn.TextSize = 12
+NPCAI_ModeBtn.BorderSizePixel = 0
+NPCAI_ModeBtn.Parent = NPCAI_Frame
+
+-- Hover Effects
+NPCAI_ToggleBtn.MouseEnter:Connect(function()
+    local color = NPCWarp_AI.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(NPCAI_ToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+NPCAI_ToggleBtn.MouseLeave:Connect(function()
+    local color = NPCWarp_AI.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(NPCAI_ToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- Toggle
+NPCAI_ToggleBtn.MouseButton1Click:Connect(function()
+    local state = NPCWarp_AI:Toggle()
+    if state then
+        NPCAI_ToggleBtn.Text = "ON"
+        NPCAI_ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        NPCAI_Title.TextColor3 = Color3.fromRGB(150, 255, 150)
+        NPCAI_Status.Text = "กำลังตรวจจับ NPC อัตโนมัติ..."
+        NPCAI_Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        NPCAI_ToggleBtn.Text = "OFF"
+        NPCAI_ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        NPCAI_Title.TextColor3 = Color3.fromRGB(100, 200, 255)
+        NPCAI_Status.Text = "พร้อมตรวจจับ NPC/Dummy อัตโนมัติ"
+        NPCAI_Status.TextColor3 = Color3.fromRGB(180, 180, 220)
+    end
+end)
+
+-- Mode Switch
+NPCAI_ModeBtn.MouseButton1Click:Connect(function()
+    local modes = {"Interact", "Attack", "Follow"}
+    local idx = table.find(modes, NPCWarp_AI.Mode) or 1
+    idx = idx % #modes + 1
+    NPCWarp_AI.Mode = modes[idx]
+    NPCAI_ModeBtn.Text = "Mode: " .. NPCWarp_AI.Mode
+    
+    print("[NPC AI] เปลี่ยนโหมดเป็น: " .. NPCWarp_AI.Mode)
+end)
+
+NPCAI_ModeBtn.MouseEnter:Connect(function()
+    TweenService:Create(NPCAI_ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+NPCAI_ModeBtn.MouseLeave:Connect(function()
+    TweenService:Create(NPCAI_ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    NPCWarp_AI.Enabled = false
+    if NPCWarp_AI.Connection then NPCWarp_AI.Connection:Disconnect() end
+end)
+
+print("[NPC AI] NPC Warp AI v3.0 Loaded - Auto Detect Mode")
+print("[NPC AI] ไม่ต้องระบุชื่อ สแกนทุก 1.5 วินาที")
 
 -- ==============================================
 -- HITBOX EXPANDER - ขยายพื้นที่โจมตี (Layout 14)
@@ -3042,13 +3051,31 @@ print("[Hitbox] ขยาย Head/HRP x3 (default), สแกนทุก 0.5s")
 
 local FlySystem = {
     Loaded = false,
-    Gui = nil
+    Gui = nil,
+    Connection = nil
 }
+
+function FlySystem:Unload()
+    if self.Gui then
+        pcall(function()
+            self.Gui:Destroy()
+        end)
+        self.Gui = nil
+    end
+    
+    if self.Connection then
+        self.Connection:Disconnect()
+        self.Connection = nil
+    end
+    
+    self.Loaded = false
+    print("[Fly] รีเซ็ตสถานะเรียบร้อย")
+end
 
 function FlySystem:Load()
     if self.Loaded then
-        print("[Fly] โหลดแล้วก่อนหน้านี้")
-        return true
+        print("[Fly] โหลดแล้วก่อนหน้านี้ กำลังรีเซ็ต...")
+        self:Unload()
     end
     
     print("[Fly] กำลังโหลด Fly Gui V3...")
@@ -3062,7 +3089,8 @@ function FlySystem:Load()
         return true
     else
         warn("[Fly] โหลดไม่สำเร็จ:", err)
-        return false
+        self.Loaded = false
+        return false, err
     end
 end
 
@@ -3126,26 +3154,37 @@ end)
 -- กดโหลด
 LoadFlyBtn.MouseButton1Click:Connect(function()
     if FlySystem.Loaded then
-        print("[Fly] โหลดไปแล้ว")
+        LoadFlyBtn.Text = "UNLOADING..."
+        LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        
+        FlySystem:Unload()
+        
+        LoadFlyBtn.Text = "LOAD FLY GUI"
+        LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
+        FlyTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+        FlySub.Text = "โหลดระบบบิน (FlyGuiV3)"
         return
     end
     
     LoadFlyBtn.Text = "LOADING..."
     LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     
-    local success = FlySystem:Load()
+    local success, err = FlySystem:Load()
     
     if success then
         LoadFlyBtn.Text = "LOADED ✓"
         LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
         FlyTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
-        FlySub.Text = "พร้อมใช้งาน - กดปุ่มใน GUI ที่โหลดขึ้น"
+        FlySub.Text = "พร้อมใช้งาน - กดปุ่มใน GUI"
     else
         LoadFlyBtn.Text = "ERROR! Retry"
         LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        FlySub.Text = "Error: " .. tostring(err):sub(1, 30)
+        
         task.wait(2)
         LoadFlyBtn.Text = "LOAD FLY GUI"
         LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
+        FlySub.Text = "โหลดระบบบิน (FlyGuiV3)"
     end
 end)
 
@@ -3318,6 +3357,118 @@ end)
 
 print("[Float] Float / Anti-Gravity Loaded (Layout 16)")
 print("[Float] ปรับความสูง 1-5 studs, กดปุ่ม ON เพื่อลอย")
+-- ==============================================
+-- AUTO INTERACT - เก็บของ/กดปุ่มอัตโนมัติ (Universal)
+-- ==============================================
+
+local AutoInteract = {
+    Enabled = false,
+    Range = 15,
+    LastUpdate = 0,
+    Connection = nil
+}
+
+function AutoInteract:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[AutoInteract] เปิดใช้งาน")
+        -- Loop ตรวจสอบ ProximityPrompt และ ClickDetector
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            if tick() - self.LastUpdate >= 0.2 then -- ตรวจสอบทุก 0.2 วินาทีเพื่อไม่ให้แลค
+                self.LastUpdate = tick()
+                
+                local char = LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
+                
+                -- ค้นหา interaction ในรัศมี
+                for _, v in ipairs(workspace:GetDescendants()) do
+                    if v:IsA("ProximityPrompt") or v:IsA("ClickDetector") then
+                        local target = v.Parent:IsA("Model") and (v.Parent.PrimaryPart or v.Parent:FindFirstChildWhichIsA("BasePart")) or v.Parent
+                        
+                        if target and target:IsA("BasePart") then
+                            local dist = (target.Position - hrp.Position).Magnitude
+                            if dist <= self.Range then
+                                if v:IsA("ProximityPrompt") then
+                                    v:InputHoldBegin()
+                                    task.wait()
+                                    v:InputHoldEnd()
+                                else
+                                    fireclickdetector(v)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    else
+        print("[AutoInteract] ปิดใช้งาน")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+    end
+    return self.Enabled
+end
+-- UI สำหรับ Auto Interact (ดีไซน์เดียวกับ Speed/Jump Frame)
+local AutoIntFrame = Instance.new("Frame")
+AutoIntFrame.Size = UDim2.new(1, -30, 0, 90) -- ขนาดกะทัดรัด
+AutoIntFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+AutoIntFrame.BorderSizePixel = 0
+[span_5](start_span)AutoIntFrame.LayoutOrder = 5 -- ต่อจาก Jump Power[span_5](end_span)
+AutoIntFrame.Parent = MainPage
+
+local AutoIntStroke = Instance.new("UIStroke", AutoIntFrame)
+AutoIntStroke.Color = Color3.fromRGB(70, 70, 120)
+AutoIntStroke.Thickness = 1
+
+local AutoIntTitle = Instance.new("TextLabel")
+AutoIntTitle.Size = UDim2.new(1, -20, 0, 24)
+AutoIntTitle.Position = UDim2.new(0, 10, 0, 8)
+AutoIntTitle.BackgroundTransparency = 1
+AutoIntTitle.Text = "🖐️ AUTO INTERACT"
+AutoIntTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+AutoIntTitle.Font = Enum.Font.GothamBold
+AutoIntTitle.TextSize = 15
+AutoIntTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoIntTitle.Parent = AutoIntFrame
+
+-- ปุ่มเปิด/ปิด
+local AutoIntBtn = Instance.new("TextButton")
+AutoIntBtn.Size = UDim2.new(0.9, 0, 0, 35)
+AutoIntBtn.Position = UDim2.new(0.05, 0, 0, 42)
+AutoIntBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+AutoIntBtn.Text = "OFF"
+AutoIntBtn.TextColor3 = Color3.new(1, 1, 1)
+AutoIntBtn.Font = Enum.Font.GothamBold
+AutoIntBtn.TextSize = 14
+AutoIntBtn.BorderSizePixel = 0
+AutoIntBtn.Parent = AutoIntFrame
+
+-[span_6](start_span)[span_7](start_span)- Hover Effects (แบบเดียวกับปุ่ม ESP/Speed)[span_6](end_span)[span_7](end_span)
+AutoIntBtn.MouseEnter:Connect(function()
+    local color = AutoInteract.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(AutoIntBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+AutoIntBtn.MouseLeave:Connect(function()
+    local color = AutoInteract.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(AutoIntBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- ฟังก์ชันกดปุ่ม
+AutoIntBtn.MouseButton1Click:Connect(function()
+    local state = AutoInteract:Toggle()
+    if state then
+        AutoIntBtn.Text = "ON"
+        AutoIntBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+    else
+        AutoIntBtn.Text = "OFF"
+        AutoIntBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+    end
+end)
 
 -- ==============================================
 -- แท็บ Settings - ตั้งค่า GUI (ไม่มีมุมโค้งแล้ว)
@@ -3673,3 +3824,201 @@ sg.Destroying:Connect(function()
 end)
 
 print("[AntiBan] 🚀 Anti-Ban System Loaded (Fixed for Delta)")
+-- ==============================================
+-- NOTIFICATION SYSTEM v1.0 - ระบบแจ้งเตือน Queue
+-- วางโค้ดนี้ต่อท้ายไฟล์ของคุณ (หลัง AntiBan หรือส่วนสุดท้าย)
+-- ==============================================
+
+local NotificationSystem = {
+    Enabled = true,
+    Queue = {},
+    IsProcessing = false,
+    Gui = nil,
+    MainFrame = nil,
+    Label = nil,
+    ToggleConnection = nil
+}
+
+-- สร้าง UI Notification
+function NotificationSystem:CreateUI()
+    -- ถ้าสร้างแล้วข้าม
+    if self.Gui and self.Gui.Parent then return end
+    
+    self.Gui = Instance.new("ScreenGui")
+    self.Gui.Name = "NotificationQueue"
+    self.Gui.ResetOnSpawn = false
+    self.Gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    
+    self.MainFrame = Instance.new("Frame")
+    self.MainFrame.Size = UDim2.new(0, 280, 0, 45)
+    self.MainFrame.Position = UDim2.new(1, 300, 0, 15) -- เริ่มจากนอกจอขวา
+    self.MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    self.MainFrame.BorderSizePixel = 0
+    self.MainFrame.Parent = self.Gui
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(80, 80, 140)
+    stroke.Thickness = 1
+    stroke.Parent = self.MainFrame
+    
+    self.Label = Instance.new("TextLabel")
+    self.Label.Size = UDim2.new(1, -20, 1, -10)
+    self.Label.Position = UDim2.new(0, 10, 0, 5)
+    self.Label.BackgroundTransparency = 1
+    self.Label.Text = ""
+    self.Label.TextColor3 = Color3.fromRGB(220, 220, 255)
+    self.Label.Font = Enum.Font.GothamMedium
+    self.Label.TextSize = 12
+    self.Label.TextXAlignment = Enum.TextXAlignment.Left
+    self.Label.TextWrapped = true
+    self.Label.Parent = self.MainFrame
+    
+    -- ปิดอัตโนมัติเมื่อ GUI หลักปิด
+    sg.Destroying:Connect(function()
+        if self.Gui then self.Gui:Destroy() end
+    end)
+end
+
+-- เพิ่มข้อความเข้า Queue
+function NotificationSystem:Add(message, duration)
+    if not self.Enabled then return end
+    
+    table.insert(self.Queue, {
+        message = tostring(message),
+        duration = duration or 3
+    })
+    
+    if not self.IsProcessing then
+        self:ProcessQueue()
+    end
+end
+
+-- ประมวลผล Queue
+function NotificationSystem:ProcessQueue()
+    if #self.Queue == 0 then
+        self.IsProcessing = false
+        return
+    end
+    
+    self.IsProcessing = true
+    local data = table.remove(self.Queue, 1)
+    
+    -- แสดงข้อความ
+    self.Label.Text = data.message
+    
+    -- Animation เข้า
+    self.MainFrame:TweenPosition(
+        UDim2.new(1, -300, 0, 15),
+        Enum.EasingDirection.Out,
+        Enum.EasingStyle.Quad,
+        0.3,
+        true
+    )
+    
+    -- รอเวลา
+    task.delay(data.duration, function()
+        -- Animation ออก
+        self.MainFrame:TweenPosition(
+            UDim2.new(1, 300, 0, 15),
+            Enum.EasingDirection.In,
+            Enum.EasingStyle.Quad,
+            0.3,
+            true
+        )
+        
+        -- ดีเลย์ก่อนข้อความต่อไป
+        task.wait(0.4)
+        self:ProcessQueue()
+    end)
+end
+
+-- เปิด/ปิดระบบ
+function NotificationSystem:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[Notification] เปิดใช้งาน")
+        if self.Gui then self.Gui.Enabled = true end
+    else
+        print("[Notification] ปิดใช้งาน")
+        if self.Gui then self.Gui.Enabled = false end
+    end
+    
+    return self.Enabled
+end
+
+-- แทนที่ print() อัตโนมัติ
+local originalPrint = print
+function print(...)
+    local args = {...}
+    local message = table.concat(args, " ")
+    
+    -- ส่งไปยัง print เดิม (console)
+    originalPrint(...)
+    
+    -- ส่งไปยัง notification
+    if NotificationSystem.Enabled then
+        -- กรองข้อความที่ไม่ต้องการแจ้งเตือน
+        if not message:find("Hub v12.1 Loaded") and 
+           not message:find("AntiBan") and
+           message ~= "" then
+            NotificationSystem:Add(message, 2.5)
+        end
+    end
+end
+
+-- เริ่มระบบอัตโนมัติ
+task.spawn(function()
+    task.wait(1) -- รอ GUI โหลดเสร็จ
+    NotificationSystem:CreateUI()
+end)
+
+-- ==============================================
+-- เพิ่มปุ่มใน Settings Tab
+-- ==============================================
+
+-- หา SettingsPage ที่มีอยู่แล้ว
+local SettingsPage = nil
+for _, child in ipairs(Main:GetDescendants()) do
+    if child:IsA("ScrollingFrame") and child.Name == "SettingsPage" then
+        SettingsPage = child
+        break
+    end
+end
+
+if SettingsPage then
+    -- สร้าง Notification Setting Row
+    local notificationRow = Instance.new("Frame")
+    notificationRow.Size = UDim2.new(1, -30, 0, 38)
+    notificationRow.BackgroundTransparency = 1
+    notificationRow.Parent = SettingsPage
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.55, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "ระบบแจ้งเตือน"
+    lbl.TextColor3 = Color3.fromRGB(180, 180, 220)
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 14
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = notificationRow
+    
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0.45, 0, 0.8, 0)
+    toggleBtn.Position = UDim2.new(0.55, 0, 0.1, 0)
+    toggleBtn.BackgroundColor3 = NotificationSystem.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    toggleBtn.Text = NotificationSystem.Enabled and "เปิด" or "ปิด"
+    toggleBtn.TextColor3 = Color3.new(1,1,1)
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.TextSize = 13
+    toggleBtn.BorderSizePixel = 0
+    toggleBtn.Parent = notificationRow
+    
+    toggleBtn.MouseButton1Click:Connect(function()
+        local state = NotificationSystem:Toggle()
+        toggleBtn.Text = state and "เปิด" or "ปิด"
+        toggleBtn.BackgroundColor3 = state and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    end)
+end
+
+print("[Notification] ระบบแจ้งเตือน Queue พร้อมใช้งาน")
