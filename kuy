@@ -3,6 +3,10 @@
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+-- INSERT: รอ LocalPlayer ให้พร้อม
+if not LocalPlayer then
+    repeat task.wait() LocalPlayer = Players.LocalPlayer until LocalPlayer
+end
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -18,7 +22,7 @@ Main.Position = UDim2.new(0.5, -200, 0.5, -170)
 Main.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
-Main.Visible = false
+Main.Visible = true
 Main.Parent = sg
 
 -- ไม่มี UICorner แล้ว → มุมเหลี่ยมตรง
@@ -73,6 +77,10 @@ end
 local MinBtn   = createBtn(-94, Color3.fromRGB(220, 160, 0), Color3.fromRGB(240, 180, 0), "-")
 local MaxBtn   = createBtn(-62, Color3.fromRGB(0, 160, 100), Color3.fromRGB(0, 190, 120), "□")
 local CloseBtn = createBtn(-30, Color3.fromRGB(200, 60, 60), Color3.fromRGB(230, 80, 80), "×")
+-- INSERT: ให้ปุ่ม Close ซ่อน GUI เมื่อกด
+CloseBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+end)
 
 -- Tab Bar (มุมเหลี่ยม)
 local TabBar = Instance.new("Frame")
@@ -485,7 +493,16 @@ function ItemESP:Create(item)
     if not hl.Parent then
         hl.Parent = workspace.CurrentCamera
     end
-    
+    -- PATCH: คำนวณขนาดอย่างปลอดภัยก่อนใช้
+local size = nil
+if item.GetExtentsSize then
+    pcall(function()
+        size = item:GetExtentsSize()
+    end)
+end
+if not size then
+    size = primary.Size or Vector3.new(1,1,1)
+end
     -- สร้าง Label แสดงชื่อและระยะทาง
     local bb = Instance.new("BillboardGui")
     bb.Name = "XItemLabel"
