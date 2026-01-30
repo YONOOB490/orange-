@@ -111,6 +111,7 @@ SettingsPage.BackgroundTransparency = 1
 SettingsPage.ScrollBarThickness = 4
 SettingsPage.Visible = false
 SettingsPage.Parent = Content
+MainPage.CanvasSize = UDim2.new(0, 0, 0, 2500)
 
 local MainLayout = Instance.new("UIListLayout")
 MainLayout.Padding = UDim.new(0, 10)
@@ -1335,18 +1336,19 @@ end)
 
 print("[Noclip] Noclip Loaded (Mobile Supported)")
 -- ==============================================
--- AIMBOT - เล็งเป้าอัตโนมัติ (ใช้ได้จริง มือถือได้)
+-- AIMBOT v2.0 - เล็งตาม FOV หรือ ระยะทาง (ใกล้สุด)
 -- ==============================================
 
 local Aimbot = {
     Enabled = false,
     Target = nil,
     Connection = nil,
+    Mode = "FOV", -- "FOV" หรือ "Distance"
     Settings = {
-        FOV = 150,
+        FOV = 150,           -- ใช้ตอนโหมด FOV
+        MaxDistance = 200,   -- ใช้ตอนโหมด Distance ( studs )
         Smoothness = 0.15,
         TargetPart = "Head",
-        MaxDistance = 500,
         TeamCheck = true
     }
 }
@@ -1359,7 +1361,9 @@ function Aimbot:GetClosest()
     local camera = workspace.CurrentCamera
     local center = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
     local closest = nil
-    local closestDist = self.Settings.FOV
+    
+    -- เลือก metric ตามโหมด
+    local bestMetric = math.huge
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
@@ -1377,15 +1381,32 @@ function Aimbot:GetClosest()
                                   or char:FindFirstChild("Head")
                 
                 if targetPart then
-                    local dist = (root.Position - targetPart.Position).Magnitude
-                    if dist <= self.Settings.MaxDistance then
-                        local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                        if onScreen then
+                    local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                    
+                    -- ต้องอยู่บนหน้าจอเท่านั้น (ไม่สนใจคนข้างหลัง)
+                    if onScreen then
+                        local metric = math.huge
+                        local valid = false
+                        
+                        if self.Mode == "FOV" then
+                            -- โหมดเดิม: ใกล้กลางจอ = ดี
                             local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                            if screenDist < closestDist then
-                                closest = targetPart
-                                closestDist = screenDist
+                            if screenDist <= self.Settings.FOV then
+                                metric = screenDist
+                                valid = true
                             end
+                        else
+                            -- โหมดใหม่: ใกล้ตัวละคร = ดี
+                            local dist3D = (root.Position - targetPart.Position).Magnitude
+                            if dist3D <= self.Settings.MaxDistance then
+                                metric = dist3D
+                                valid = true
+                            end
+                        end
+                        
+                        if valid and metric < bestMetric then
+                            bestMetric = metric
+                            closest = targetPart
                         end
                     end
                 end
@@ -1404,10 +1425,10 @@ function Aimbot:Update()
         self.Target = target
         local camera = workspace.CurrentCamera
         
-        -- คำนวณ CFrame ใหม่ที่มองไปที่เป้า
+        -- คำนวณ CFrame ใหม่
         local targetCF = CFrame.new(camera.CFrame.Position, target.Position)
         
-        -- Smooth Lerp (ทำให้นุ่มนวลไม่กระชาก)
+        -- Smooth Lerp
         camera.CFrame = camera.CFrame:Lerp(targetCF, self.Settings.Smoothness)
     else
         self.Target = nil
@@ -1418,7 +1439,7 @@ function Aimbot:Toggle()
     self.Enabled = not self.Enabled
     
     if self.Enabled then
-        print("[Aimbot] เปิดใช้งาน")
+        print("[Aimbot] เปิดใช้งาน | โหมด:", self.Mode)
         self.Connection = game:GetService("RunService").RenderStepped:Connect(function()
             self:Update()
         end)
@@ -1433,12 +1454,15 @@ function Aimbot:Toggle()
     return self.Enabled
 end
 
--- UI Aimbot (อยู่ใต้ Noclip)
+-- ==============================================
+-- UI สำหรับ Aimbot v2.0 (มีปุ่มสลับโหมด)
+-- ==============================================
+
 local AimFrame = Instance.new("Frame")
-AimFrame.Size = UDim2.new(1, -30, 0, 120) -- ปรับขนาดให้พอดี
+AimFrame.Size = UDim2.new(1, -30, 0, 140) -- เพิ่มความสูงเป็น 140
 AimFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
 AimFrame.BorderSizePixel = 0
-AimFrame.LayoutOrder = 7 -- ต่อจาก Noclip (LayoutOrder 6)
+AimFrame.LayoutOrder = 7
 AimFrame.Parent = MainPage
 
 local AimStroke = Instance.new("UIStroke", AimFrame)
@@ -1450,28 +1474,28 @@ local AimTitle = Instance.new("TextLabel")
 AimTitle.Size = UDim2.new(1, -20, 0, 26)
 AimTitle.Position = UDim2.new(0, 10, 0, 8)
 AimTitle.BackgroundTransparency = 1
-AimTitle.Text = "🎯 AIMBOT"
+AimTitle.Text = "🎯 AIMBOT v2.0"
 AimTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
 AimTitle.Font = Enum.Font.GothamBold
 AimTitle.TextSize = 15
 AimTitle.TextXAlignment = Enum.TextXAlignment.Left
 AimTitle.Parent = AimFrame
 
--- สถานะ
+-- สถานะ (แสดงโหมดปัจจุบัน)
 local AimStatus = Instance.new("TextLabel")
 AimStatus.Size = UDim2.new(1, -20, 0, 20)
 AimStatus.Position = UDim2.new(0, 10, 0, 32)
 AimStatus.BackgroundTransparency = 1
-AimStatus.Text = "OFF - Auto aim at enemies"
+AimStatus.Text = "Mode: FOV (Closest to crosshair)"
 AimStatus.TextColor3 = Color3.fromRGB(180, 180, 220)
 AimStatus.Font = Enum.Font.Gotham
 AimStatus.TextSize = 11
 AimStatus.TextXAlignment = Enum.TextXAlignment.Left
 AimStatus.Parent = AimFrame
 
--- ปุ่ม Toggle
+-- ปุ่ม Toggle หลัก (ซ้าย)
 local AimBtn = Instance.new("TextButton")
-AimBtn.Size = UDim2.new(0.45, -5, 0, 36)
+AimBtn.Size = UDim2.new(0.45, -5, 0, 45)
 AimBtn.Position = UDim2.new(0, 10, 0, 58)
 AimBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
 AimBtn.Text = "OFF"
@@ -1481,15 +1505,27 @@ AimBtn.TextSize = 14
 AimBtn.BorderSizePixel = 0
 AimBtn.Parent = AimFrame
 
--- ปุ่มเปลี่ยนเป้า (Head/Body)
+-- ปุ่มสลับโหมด (ขวาบน)
+local ModeBtn = Instance.new("TextButton")
+ModeBtn.Size = UDim2.new(0.48, -5, 0, 20)
+ModeBtn.Position = UDim2.new(0.52, 0, 0, 58)
+ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180) -- สีฟ้า = FOV Mode
+ModeBtn.Text = "Mode: FOV"
+ModeBtn.TextColor3 = Color3.new(1, 1, 1)
+ModeBtn.Font = Enum.Font.GothamBold
+ModeBtn.TextSize = 11
+ModeBtn.BorderSizePixel = 0
+ModeBtn.Parent = AimFrame
+
+-- ปุ่มเปลี่ยนเป้า Head/Body (ขวาล่าง)
 local PartBtn = Instance.new("TextButton")
-PartBtn.Size = UDim2.new(0.48, -5, 0, 36)
-PartBtn.Position = UDim2.new(0.52, 0, 0, 58)
+PartBtn.Size = UDim2.new(0.48, -5, 0, 22)
+PartBtn.Position = UDim2.new(0.52, 0, 0, 81)
 PartBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
 PartBtn.Text = "Target: Head"
 PartBtn.TextColor3 = Color3.new(1, 1, 1)
 PartBtn.Font = Enum.Font.Gotham
-PartBtn.TextSize = 12
+PartBtn.TextSize = 11
 PartBtn.BorderSizePixel = 0
 PartBtn.Parent = AimFrame
 
@@ -1503,6 +1539,24 @@ AimBtn.MouseLeave:Connect(function()
     TweenService:Create(AimBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
 end)
 
+ModeBtn.MouseEnter:Connect(function()
+    TweenService:Create(ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 170, 200)}):Play()
+end)
+ModeBtn.MouseLeave:Connect(function()
+    local isFOV = Aimbot.Mode == "FOV"
+    local color = isFOV and Color3.fromRGB(80, 140, 180) or Color3.fromRGB(180, 140, 80)
+    TweenService:Create(ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+PartBtn.MouseEnter:Connect(function()
+    TweenService:Create(PartBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+PartBtn.MouseLeave:Connect(function()
+    local isHead = Aimbot.Settings.TargetPart == "Head"
+    local color = isHead and Color3.fromRGB(80, 80, 140) or Color3.fromRGB(140, 100, 80)
+    TweenService:Create(PartBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
 -- กดปุ่ม Toggle
 AimBtn.MouseButton1Click:Connect(function()
     local state = Aimbot:Toggle()
@@ -1511,14 +1565,31 @@ AimBtn.MouseButton1Click:Connect(function()
         AimBtn.Text = "ON"
         AimBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
         AimTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
-        AimStatus.Text = "ON - Locking onto enemies..."
-        AimStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
     else
         AimBtn.Text = "OFF"
         AimBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
         AimTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
-        AimStatus.Text = "OFF - Auto aim at enemies"
+    end
+end)
+
+-- 🆕 สลับโหมด FOV / Distance
+ModeBtn.MouseButton1Click:Connect(function()
+    if Aimbot.Mode == "FOV" then
+        -- เปลี่ยนเป็น Distance
+        Aimbot.Mode = "Distance"
+        ModeBtn.Text = "Mode: Distance"
+        ModeBtn.BackgroundColor3 = Color3.fromRGB(180, 140, 80) -- ส้ม
+        AimStatus.Text = "Mode: Closest by Distance (200 studs)"
+        AimStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+        print("[Aimbot] เปลี่ยนโหมด: Distance (ล็อคคนใกล้สุด)")
+    else
+        -- เปลี่ยนเป็น FOV
+        Aimbot.Mode = "FOV"
+        ModeBtn.Text = "Mode: FOV"
+        ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180) -- ฟ้า
+        AimStatus.Text = "Mode: FOV (Closest to crosshair)"
         AimStatus.TextColor3 = Color3.fromRGB(180, 180, 220)
+        print("[Aimbot] เปลี่ยนโหมด: FOV (ล็อคคนใกล้กลางจอ)")
     end
 end)
 
@@ -1535,23 +1606,14 @@ PartBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-PartBtn.MouseEnter:Connect(function()
-    TweenService:Create(PartBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
-end)
-PartBtn.MouseLeave:Connect(function()
-    local isHead = Aimbot.Settings.TargetPart == "Head"
-    local color = isHead and Color3.fromRGB(80, 80, 140) or Color3.fromRGB(140, 100, 80)
-    TweenService:Create(PartBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
-end)
-
 -- Cleanup
 sg.Destroying:Connect(function()
     Aimbot.Enabled = false
     if Aimbot.Connection then Aimbot.Connection:Disconnect() end
 end)
 
-print("[Aimbot] Aimbot Loaded (Mobile: Camera rotation)")
-print("[Aimbot] FOV:", Aimbot.Settings.FOV, "px | Smooth:", Aimbot.Settings.Smoothness)
+print("[Aimbot] Aimbot v2.0 Loaded")
+print("[Aimbot] Modes: FOV (screen center) | Distance (3D proximity)")
 -- ==============================================
 -- TELEPORT TO PLAYER - เทเลพอร์ตไปหาผู้เล่น
 -- ==============================================
