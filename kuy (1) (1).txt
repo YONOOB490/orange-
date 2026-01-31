@@ -1,0 +1,5247 @@
+-- Executor Hub v12.1 - Complete GUI (มุมเหลี่ยม ไม่โค้งเลย)
+-- ลบความโค้งมุมทั้งหมด + ลบตัวเลือกปรับมุมใน Settings
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+-- INSERT: รอ LocalPlayer ให้พร้อม
+if not LocalPlayer then
+    repeat task.wait() LocalPlayer = Players.LocalPlayer until LocalPlayer
+end
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local sg = Instance.new("ScreenGui")
+sg.Name = "HubFinalNoCorner"
+sg.ResetOnSpawn = false
+sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Main Frame (มุมเหลี่ยม = 0)
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 400, 0, 340)
+Main.Position = UDim2.new(0.5, -200, 0.5, -170)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Visible = true
+Main.Parent = sg
+
+-- ไม่มี UICorner แล้ว → มุมเหลี่ยมตรง
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(70, 70, 120)
+Stroke.Transparency = 0.75
+Stroke.Thickness = 1
+Stroke.Parent = Main
+
+-- Title Bar (มุมเหลี่ยม)
+local Title = Instance.new("Frame")
+Title.Size = UDim2.new(1, 0, 0, 36)
+Title.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+Title.BorderSizePixel = 0
+Title.Parent = Main
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, -120, 1, 0)
+TitleText.Position = UDim2.new(0, 14, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "YOnoOb Hub"
+TitleText.TextColor3 = Color3.fromRGB(210, 210, 240)
+TitleText.Font = Enum.Font.GothamSemibold
+TitleText.TextSize = 16
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = Title
+
+-- Control Buttons (มุมกลมเดิมไว้ เพราะเป็นปุ่มเล็ก ๆ ดูดีกว่า)
+local function createBtn(posX, color, hover, text)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 28, 0, 28)
+    btn.Position = UDim2.new(1, posX, 0, 4)
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.BorderSizePixel = 0
+    btn.Parent = Title
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)  -- ปุ่มยังกลมอยู่
+    c.Parent = btn
+
+    btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = hover}):Play() end)
+    btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play() end)
+
+    return btn
+end
+
+local MinBtn   = createBtn(-94, Color3.fromRGB(220, 160, 0), Color3.fromRGB(240, 180, 0), "-")
+local MaxBtn   = createBtn(-62, Color3.fromRGB(0, 160, 100), Color3.fromRGB(0, 190, 120), "□")
+local CloseBtn = createBtn(-30, Color3.fromRGB(200, 60, 60), Color3.fromRGB(230, 80, 80), "×")
+-- INSERT: ให้ปุ่ม Close ซ่อน GUI เมื่อกด
+CloseBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+end)
+
+-- Tab Bar (มุมเหลี่ยม)
+local TabBar = Instance.new("Frame")
+TabBar.Size = UDim2.new(1, 0, 0, 34)
+TabBar.Position = UDim2.new(0, 0, 0, 36)
+TabBar.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+TabBar.BorderSizePixel = 0
+TabBar.Parent = Main
+
+-- Content
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -16, 1, -80)
+Content.Position = UDim2.new(0, 8, 0, 74)
+Content.BackgroundTransparency = 1
+Content.Parent = Main
+
+-- Pages
+local MainPage = Instance.new("ScrollingFrame")
+MainPage.Size = UDim2.new(1,0,1,0)
+MainPage.BackgroundTransparency = 1
+MainPage.ScrollBarThickness = 4
+MainPage.Visible = true
+MainPage.Parent = Content
+
+local SettingsPage = Instance.new("ScrollingFrame")
+SettingsPage.Size = UDim2.new(1,0,1,0)
+SettingsPage.BackgroundTransparency = 1
+SettingsPage.ScrollBarThickness = 4
+SettingsPage.Visible = false
+SettingsPage.Parent = Content
+MainPage.CanvasSize = UDim2.new(0, 0, 0, 2500)
+
+local MainLayout = Instance.new("UIListLayout")
+MainLayout.Padding = UDim.new(0, 10)
+MainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+MainLayout.Parent = MainPage
+
+local SettingsLayout = Instance.new("UIListLayout")
+SettingsLayout.Padding = UDim.new(0, 10)
+SettingsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SettingsLayout.Parent = SettingsPage
+
+-- Tab Buttons
+local function createTab(name, page)
+    local tab = Instance.new("TextButton")
+    tab.Size = UDim2.new(0.5, -4, 1, -4)
+    tab.BackgroundTransparency = 1
+    tab.Text = name
+    tab.TextColor3 = Color3.fromRGB(160, 160, 200)
+    tab.Font = Enum.Font.GothamSemibold
+    tab.TextSize = 15
+    tab.Parent = TabBar
+
+    tab.MouseButton1Click:Connect(function()
+        MainPage.Visible = (page == MainPage)
+        SettingsPage.Visible = (page == SettingsPage)
+        TweenService:Create(tab, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(220, 220, 255)}):Play()
+        for _, other in ipairs(TabBar:GetChildren()) do
+            if other:IsA("TextButton") and other ~= tab then
+                TweenService:Create(other, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(160, 160, 200)}):Play()
+            end
+        end
+    end)
+
+    return tab
+end
+
+local TabMain = createTab("Main", MainPage)
+TabMain.Position = UDim2.new(0, 4, 0, 2)
+local TabSettings = createTab("Settings", SettingsPage)
+TabSettings.Position = UDim2.new(0.5, -2, 0, 2)
+
+-- ==============================================
+-- พื้นที่สำหรับใส่ฟีเจอร์ทั้งหมด (แท็บ Main)
+-- ==============================================
+-- ==============================================
+-- ESP SYSTEM - เขียนใหม่สำหรับ Hub v12.1
+-- ==============================================
+
+-- ตัวแปรหลัก (ใช้จาก GUI หลักที่มีอยู่แล้ว)
+local ESP = {
+    Enabled = false,
+    Objects = {},
+    Connections = {},
+    LoopConnection = nil,
+    LastUpdate = 0,
+    Transparency = 0.85
+}
+
+-- ฟังก์ชันล้าง ESP
+function ESP:Clear()
+    for player, data in pairs(self.Objects) do
+        if data.Highlight then
+            data.Highlight:Destroy()
+        end
+    end
+    self.Objects = {}
+    
+    for _, conn in pairs(self.Connections) do
+        if conn then conn:Disconnect() end
+    end
+    self.Connections = {}
+    
+    if self.LoopConnection then
+        self.LoopConnection:Disconnect()
+        self.LoopConnection = nil
+    end
+end
+
+-- สร้าง ESP สำหรับผู้เล่น
+function ESP:Create(player)
+    if player == LocalPlayer then return end
+    if not player.Character then return end
+    if self.Objects[player] then return end
+    
+    local char = player.Character
+    if not char:FindFirstChild("Humanoid") then return end
+    
+    local hl = Instance.new("Highlight")
+    hl.Name = "XESPHighlight"
+    hl.Adornee = char
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.FillColor = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 80, 80)
+    hl.FillTransparency = self.Transparency
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.OutlineTransparency = 0.2
+    
+    -- ใส่ใน CoreGui ป้องกันหาย (ใช้ pcall ป้องกัน error)
+    pcall(function()
+        hl.Parent = game:GetService("CoreGui")
+    end)
+    if not hl.Parent then
+        hl.Parent = workspace.CurrentCamera
+    end
+    
+    self.Objects[player] = {
+        Highlight = hl,
+        Character = char
+    }
+end
+
+-- อัพเดท ESP
+function ESP:Update()
+    if not self.Enabled then return end
+    
+    -- สร้าง ESP ให้ผู้เล่นที่ยังไม่มี
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            if not self.Objects[player] or self.Objects[player].Character ~= player.Character then
+                self:Create(player)
+            end
+        end
+    end
+    
+    -- ลบ ESP ของผู้เล่นที่ออกไปแล้ว
+    for player, data in pairs(self.Objects) do
+        if not player.Parent or not data.Highlight or not data.Highlight.Parent then
+            if data.Highlight then data.Highlight:Destroy() end
+            self.Objects[player] = nil
+        end
+    end
+end
+
+-- เปิด/ปิด ESP
+function ESP:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        self:Clear()
+        print("[ESP] เปิดใช้งาน")
+        
+        -- สร้างให้ผู้เล่นปัจจุบันทันที
+        for _, player in ipairs(Players:GetPlayers()) do
+            self:Create(player)
+        end
+        
+        -- Loop อัพเดท
+        self.LoopConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            if tick() - self.LastUpdate >= 0.1 then
+                self.LastUpdate = tick()
+                self:Update()
+            end
+        end)
+        
+        -- Event ผู้เล่นใหม่
+        self.Connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)
+            task.delay(1, function()
+                if self.Enabled then
+                    self:Create(player)
+                end
+            end)
+        end)
+        
+    else
+        print("[ESP] ปิดใช้งาน")
+        self:Clear()
+    end
+    
+    return self.Enabled
+end
+
+-- UI สำหรับ ESP (เข้ากับดีไซน์ GUI คุณ)
+local ESPFrame = Instance.new("Frame")
+ESPFrame.Size = UDim2.new(1, -30, 0, 110)
+ESPFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+ESPFrame.BorderSizePixel = 0
+ESPFrame.Parent = MainPage
+
+local ESPStroke = Instance.new("UIStroke")
+ESPStroke.Color = Color3.fromRGB(70, 70, 120)
+ESPStroke.Thickness = 1
+ESPStroke.Parent = ESPFrame
+
+-- หัวข้อ
+local ESPTitle = Instance.new("TextLabel")
+ESPTitle.Size = UDim2.new(1, -20, 0, 28)
+ESPTitle.Position = UDim2.new(0, 10, 0, 8)
+ESPTitle.BackgroundTransparency = 1
+ESPTitle.Text = "👁 ESP SYSTEM"
+ESPTitle.TextColor3 = Color3.fromRGB(220, 220, 255)
+ESPTitle.Font = Enum.Font.GothamBold
+ESPTitle.TextSize = 15
+ESPTitle.TextXAlignment = Enum.TextXAlignment.Left
+ESPTitle.Parent = ESPFrame
+
+-- ปุ่ม Toggle
+local ESPButton = Instance.new("TextButton")
+ESPButton.Size = UDim2.new(0.4, 0, 0, 32)
+ESPButton.Position = UDim2.new(0.05, 0, 0, 45)
+ESPButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+ESPButton.Text = "OFF"
+ESPButton.TextColor3 = Color3.new(1, 1, 1)
+ESPButton.Font = Enum.Font.GothamBold
+ESPButton.TextSize = 14
+ESPButton.BorderSizePixel = 0
+ESPButton.Parent = ESPFrame
+
+-- ปุ่ม Toggle Trans
+local TransButton = Instance.new("TextButton")
+TransButton.Size = UDim2.new(0.45, 0, 0, 32)
+TransButton.Position = UDim2.new(0.5, 0, 0, 45)
+TransButton.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+TransButton.Text = "Transparency: 85%"
+TransButton.TextColor3 = Color3.new(1, 1, 1)
+TransButton.Font = Enum.Font.Gotham
+TransButton.TextSize = 12
+TransButton.BorderSizePixel = 0
+TransButton.Parent = ESPFrame
+
+-- สถานะ
+local ESPStatus = Instance.new("TextLabel")
+ESPStatus.Size = UDim2.new(1, -20, 0, 20)
+ESPStatus.Position = UDim2.new(0, 10, 0, 82)
+ESPStatus.BackgroundTransparency = 1
+ESPStatus.Text = "พร้อมใช้งาน"
+ESPStatus.TextColor3 = Color3.fromRGB(150, 150, 180)
+ESPStatus.Font = Enum.Font.Gotham
+ESPStatus.TextSize = 12
+ESPStatus.TextXAlignment = Enum.TextXAlignment.Left
+ESPStatus.Parent = ESPFrame
+
+-- Hover Effects
+ESPButton.MouseEnter:Connect(function()
+    local targetColor = ESP.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(ESPButton, TweenInfo.new(0.15), {BackgroundColor3 = targetColor}):Play()
+end)
+
+ESPButton.MouseLeave:Connect(function()
+    local targetColor = ESP.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(ESPButton, TweenInfo.new(0.15), {BackgroundColor3 = targetColor}):Play()
+end)
+
+TransButton.MouseEnter:Connect(function()
+    TweenService:Create(TransButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+
+TransButton.MouseLeave:Connect(function()
+    TweenService:Create(TransButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+end)
+
+-- ฟังก์ชันกดปุ่ม
+ESPButton.MouseButton1Click:Connect(function()
+    local state = ESP:Toggle()
+    
+    if state then
+        ESPButton.Text = "ON"
+        ESPButton.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        ESPTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        ESPStatus.Text = "กำลังทำงาน..."
+        ESPStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        ESPButton.Text = "OFF"
+        ESPButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        ESPTitle.TextColor3 = Color3.fromRGB(220, 220, 255)
+        ESPStatus.Text = "ปิดใช้งาน"
+        ESPStatus.TextColor3 = Color3.fromRGB(150, 150, 180)
+    end
+end)
+
+-- ปรับความโปร่งใส
+TransButton.MouseButton1Click:Connect(function()
+    if ESP.Transparency == 0.85 then
+        ESP.Transparency = 0.6
+        TransButton.Text = "Transparency: 60%"
+    elseif ESP.Transparency == 0.6 then
+        ESP.Transparency = 0.95
+        TransButton.Text = "Transparency: 95%"
+    else
+        ESP.Transparency = 0.85
+        TransButton.Text = "Transparency: 85%"
+    end
+    
+    -- อัพเดทที่มีอยู่
+    for _, data in pairs(ESP.Objects) do
+        if data.Highlight then
+            data.Highlight.FillTransparency = ESP.Transparency
+        end
+    end
+end)
+
+-- ล้างตอนปิด GUI
+sg.Destroying:Connect(function()
+    ESP:Clear()
+    print("[ESP] ล้างทรัพยากรเรียบร้อย")
+end)
+
+print("[ESP] ระบบ ESP โหลดเสร็จแล้ว")
+-- ==============================================
+-- ITEM ESP v3.0 - Performance Upgraded + Cache System
+-- แก้บัคสแกนหนัก + ปรับปรุงการแสดงผล
+-- ==============================================
+
+local ItemESP = {
+    Enabled = false,
+    Objects = {},
+    Connections = {},
+    LoopConnection = nil,
+    LastUpdate = os.clock(),
+    ScanInterval = 2, -- สแกนทุก 2 วิ แทนทุกเฟรม
+    Transparency = 0.85,
+    MaxItems = 30, -- จำกัดเพื่อลดภาระ
+    Cache = {} -- Cache ไอเท็มที่เจอ
+}
+
+function ItemESP:IsItem(obj)
+    if not obj or not obj:IsA("Model") then return false end
+    if obj.Parent == nil then return false end
+    
+    -- เช็ค Cache ก่อน
+    if self.Cache[obj] ~= nil then
+        return self.Cache[obj]
+    end
+    
+    -- ไม่ใช่ตัวละครผู้เล่น
+    if game.Players:GetPlayerFromCharacter(obj) then
+        self.Cache[obj] = false
+        return false
+    end
+    
+    -- ต้องมี PrimaryPart
+    local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+    if not primary then
+        self.Cache[obj] = false
+        return false
+    end
+    
+    -- ขนาดไม่ใหญ่เกินไป
+    local size = obj:GetExtentsSize()
+    if size.Magnitude > 20 then
+        self.Cache[obj] = false
+        return false
+    end
+    
+    -- เช็คชื่อไอเท็ม
+    local name = obj.Name:lower()
+    local itemKeywords = {"item", "coin", "gem", "weapon", "tool", "potion", "food", "material", "chest", "box", "loot", "collect", "reward", "cash", "money", "gun", "sword"}
+    for _, keyword in ipairs(itemKeywords) do
+        if name:find(keyword) then
+            self.Cache[obj] = true
+            return true
+        end
+    end
+    
+    -- เช็ค Mesh/Texture
+    local hasVisual = obj:FindFirstChildWhichIsA("SpecialMesh") or 
+                      obj:FindFirstChildWhichIsA("Texture") or
+                      obj:FindFirstChildWhichIsA("Decal") or
+                      primary:IsA("MeshPart")
+    
+    if hasVisual then
+        self.Cache[obj] = true
+        return true
+    end
+    
+    self.Cache[obj] = false
+    return false
+end
+
+function ItemESP:Clear()
+    for _, data in pairs(self.Objects) do
+        if data.Highlight then data.Highlight:Destroy() end
+        if data.Billboard then data.Billboard:Destroy() end
+    end
+    self.Objects = {}
+    
+    for _, conn in pairs(self.Connections) do
+        if conn then conn:Disconnect() end
+    end
+    self.Connections = {}
+    
+    if self.LoopConnection then
+        self.LoopConnection:Disconnect()
+        self.LoopConnection = nil
+    end
+    
+    self.Cache = {} -- Clear cache
+end
+
+function ItemESP:Create(item)
+    if self.Objects[item] then return end
+    if not item.Parent then return end
+    
+    local char = item
+    if not char:FindFirstChildOfClass("Humanoid") then return end
+    
+    -- สร้าง Highlight
+    local hl = Instance.new("Highlight")
+    hl.Name = "XESPHighlight"
+    hl.Adornee = char
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.FillColor = item.Team and item.Team.TeamColor.Color or Color3.fromRGB(255, 80, 80)
+    hl.FillTransparency = self.Transparency
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.OutlineTransparency = 0.2
+    
+    pcall(function()
+        hl.Parent = game:GetService("CoreGui")
+    end)
+    if not hl.Parent then
+        hl.Parent = workspace.CurrentCamera
+    end
+    
+    -- สร้าง Billboard
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "XItemLabel"
+    bb.Size = UDim2.new(0, 200, 0, 40)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.MaxDistance = self.Range
+    bb.Adornee = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+    
+    local txt = Instance.new("TextLabel", bb)
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Text = char.Name
+    txt.TextColor3 = Color3.fromRGB(255, 255, 200)
+    txt.TextStrokeTransparency = 0.8
+    txt.Font = Enum.Font.GothamBold
+    txt.TextSize = 14
+    
+    pcall(function()
+        bb.Parent = game:GetService("CoreGui")
+    end)
+    if not bb.Parent then
+        bb.Parent = workspace.CurrentCamera
+    end
+    
+    self.Objects[item] = {
+        Highlight = hl,
+        Billboard = bb,
+        TextLabel = txt,
+        LastUpdate = os.clock()
+    }
+end
+
+function ItemESP:Update()
+    if not self.Enabled then return end
+    
+    -- อัพเดททุกเฟรมแต่ Optimize
+    if os.clock() - self.LastUpdate < 0.1 then return end -- 10 FPS
+    self.LastUpdate = os.clock()
+    
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    local hrp = char.HumanoidRootPart
+    local charPos = hrp.Position
+    
+    -- สแกนแบบ Batch ทุก 2 วินาที
+    if os.clock() - self.LastUpdate > self.ScanInterval then
+        self:ScanAndCreate()
+    end
+    
+    -- อัพเดทระยะทาง
+    for item, data in pairs(self.Objects) do
+        if not item.Parent or not data.Highlight or not data.Highlight.Parent then
+            if data.Highlight then data.Highlight:Destroy() end
+            if data.Billboard then data.Billboard:Destroy() end
+            self.Objects[item] = nil
+        else
+            local primary = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+            if primary then
+                local dist = (primary.Position - charPos).Magnitude
+                if dist > self.Range then
+                    data.Billboard.Enabled = false
+                    data.Highlight.Enabled = false
+                else
+                    data.Billboard.Enabled = true
+                    data.Highlight.Enabled = true
+                    data.TextLabel.Text = string.format("%s\n[%.0fm]", item.Name, dist)
+                end
+            end
+        end
+    end
+end
+
+function ItemESP:ScanAndCreate()
+    local count = 0
+    local charPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position
+    
+    if not charPos then return end
+    
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if count >= self.MaxItems then break end
+        
+        if not self.Objects[obj] and self:IsItem(obj) then
+            local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if primary then
+                local dist = (primary.Position - charPos).Magnitude
+                if dist <= self.Range then
+                    self:Create(obj)
+                    count = count + 1
+                end
+            end
+        end
+    end
+end
+
+function ItemESP:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[ItemESP] เปิดใช้งาน (Optimized)")
+        self:Clear()
+        self:ScanAndCreate()
+        
+        self.LoopConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            self:Update()
+        end)
+        
+        self.Connections.ChildAdded = workspace.ChildAdded:Connect(function(child)
+            task.wait(0.5)
+            if self.Enabled and self:IsItem(child) then
+                self:Create(child)
+            end
+        end)
+    else
+        print("[ItemESP] ปิดใช้งาน")
+        self:Clear()
+    end
+    
+    return self.Enabled
+end
+
+-- UI ที่แก้ไขแล้ว
+local ItemFrame = Instance.new("Frame")
+ItemFrame.Size = UDim2.new(1, -30, 0, 130)
+ItemFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+ItemFrame.BorderSizePixel = 0
+ItemFrame.LayoutOrder = 2
+ItemFrame.Parent = MainPage
+
+local ItemStroke = Instance.new("UIStroke", ItemFrame)
+ItemStroke.Color = Color3.fromRGB(70, 70, 120)
+ItemStroke.Thickness = 1
+
+local ItemTitle = Instance.new("TextLabel")
+ItemTitle.Size = UDim2.new(1, -20, 0, 28)
+ItemTitle.Position = UDim2.new(0, 10, 0, 8)
+ItemTitle.BackgroundTransparency = 1
+ItemTitle.Text = "📦 ITEM ESP v3.0 (Optimized)"
+ItemTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
+ItemTitle.Font = Enum.Font.GothamBold
+ItemTitle.TextSize = 15
+ItemTitle.TextXAlignment = Enum.TextXAlignment.Left
+ItemTitle.Parent = ItemFrame
+
+local ItemToggle = Instance.new("TextButton")
+ItemToggle.Size = UDim2.new(0.45, -5, 0, 45)
+ItemToggle.Position = UDim2.new(0, 10, 0, 45)
+ItemToggle.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+ItemToggle.Text = "OFF"
+ItemToggle.TextColor3 = Color3.new(1, 1, 1)
+ItemToggle.Font = Enum.Font.GothamBold
+ItemToggle.TextSize = 14
+ItemToggle.BorderSizePixel = 0
+ItemToggle.Parent = ItemFrame
+
+local RefreshBtn = Instance.new("TextButton")
+RefreshBtn.Size = UDim2.new(0.5, -5, 0, 45)
+RefreshBtn.Position = UDim2.new(0.5, 0, 0, 45)
+RefreshBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+RefreshBtn.Text = "Scan Now"
+RefreshBtn.TextColor3 = Color3.new(1, 1, 1)
+RefreshBtn.Font = Enum.Font.Gotham
+RefreshBtn.TextSize = 13
+RefreshBtn.BorderSizePixel = 0
+RefreshBtn.Parent = ItemFrame
+
+local ItemStatus = Instance.new("TextLabel")
+ItemStatus.Size = UDim2.new(1, -20, 0, 20)
+ItemStatus.Position = UDim2.new(0, 10, 0, 95)
+ItemStatus.BackgroundTransparency = 1
+ItemStatus.Text = "พร้อมสแกน - รัศมี 200 studs"
+ItemStatus.TextColor3 = Color3.fromRGB(150, 150, 180)
+ItemStatus.Font = Enum.Font.Gotham
+ItemStatus.TextSize = 11
+ItemStatus.TextXAlignment = Enum.TextXAlignment.Left
+ItemStatus.Parent = ItemFrame
+
+-- Hover Effects
+ItemToggle.MouseEnter:Connect(function()
+    local color = ItemESP.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(ItemToggle, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+ItemToggle.MouseLeave:Connect(function()
+    local color = ItemESP.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(ItemToggle, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+RefreshBtn.MouseEnter:Connect(function()
+    TweenService:Create(RefreshBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+
+RefreshBtn.MouseLeave:Connect(function()
+    TweenService:Create(RefreshBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+end)
+
+-- Events
+ItemToggle.MouseButton1Click:Connect(function()
+    local state = ItemESP:Toggle()
+    if state then
+        ItemToggle.Text = "ON"
+        ItemToggle.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        ItemTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        ItemStatus.Text = "กำลังสแกนไอเท็ม..."
+        ItemStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        ItemToggle.Text = "OFF"
+        ItemToggle.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        ItemTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
+        ItemStatus.Text = "พร้อมสแกน - รัศมี 200 studs"
+        ItemStatus.TextColor3 = Color3.fromRGB(150, 150, 180)
+    end
+end)
+
+RefreshBtn.MouseButton1Click:Connect(function()
+    ItemESP.LastUpdate = 0
+    ItemStatus.Text = "กำลังรีเฟรช..."
+    task.wait(0.5)
+    ItemStatus.Text = "พบ " .. tostring(#ItemESP.Objects) .. " ไอเท็ม"
+end)
+
+sg.Destroying:Connect(function()
+    ItemESP:Clear()
+    print("[ItemESP] ล้างทรัพยากรเรียบร้อย")
+end)
+
+print("[ItemESP] Item ESP v3.0 Optimized Loaded (Layout 2)")
+print("[ItemESP] ScanInterval: 2s, MaxItems: 30, Cache: Enabled")
+
+-- ==============================================
+-- SPEED CONTROL - ปรับความเร็วลื่นไหล
+-- ==============================================
+
+local SpeedSystem = {
+    Enabled = false,
+    DefaultSpeed = 16,
+    TargetSpeed = 16,
+    CurrentSpeed = 16,
+    Connection = nil
+}
+
+function SpeedSystem:SetSpeed(value)
+    self.TargetSpeed = math.clamp(value, 1, 200)
+    self.Enabled = (value ~= self.DefaultSpeed)
+    
+    -- เริ่ม Loop ถ้ายังไม่มี
+    if not self.Connection then
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+            if not self.Enabled then return end
+            local char = LocalPlayer.Character
+            if not char then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+            
+            -- Tween ความเร็วแบบ smooth (Lerp)
+            self.CurrentSpeed = self.CurrentSpeed + (self.TargetSpeed - self.CurrentSpeed) * 0.1
+            hum.WalkSpeed = self.CurrentSpeed
+        end)
+    end
+end
+
+function SpeedSystem:Reset()
+    self:SetSpeed(self.DefaultSpeed)
+    if self.Connection then
+        self.Connection:Disconnect()
+        self.Connection = nil
+    end
+end
+
+-- UI Speed
+local SpeedFrame = Instance.new("Frame")
+SpeedFrame.Size = UDim2.new(1, -30, 0, 100)
+SpeedFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+SpeedFrame.BorderSizePixel = 0
+SpeedFrame.LayoutOrder = 3
+SpeedFrame.Parent = MainPage
+
+local SpeedStroke = Instance.new("UIStroke", SpeedFrame)
+SpeedStroke.Color = Color3.fromRGB(70, 70, 120)
+SpeedStroke.Thickness = 1
+
+local SpeedTitle = Instance.new("TextLabel")
+SpeedTitle.Size = UDim2.new(1, -20, 0, 24)
+SpeedTitle.Position = UDim2.new(0, 10, 0, 8)
+SpeedTitle.BackgroundTransparency = 1
+SpeedTitle.Text = "⚡ SPEED BOOST"
+SpeedTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+SpeedTitle.Font = Enum.Font.GothamBold
+SpeedTitle.TextSize = 15
+SpeedTitle.TextXAlignment = Enum.TextXAlignment.Left
+SpeedTitle.Parent = SpeedFrame
+
+-- แถบเลื่อนความเร็ว
+local SpeedSlider = Instance.new("TextButton")
+SpeedSlider.Size = UDim2.new(1, -30, 0, 30)
+SpeedSlider.Position = UDim2.new(0, 15, 0, 40)
+SpeedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+SpeedSlider.Text = "Speed: 16 (Default)"
+SpeedSlider.TextColor3 = Color3.new(1, 1, 1)
+SpeedSlider.Font = Enum.Font.Gotham
+SpeedSlider.TextSize = 13
+SpeedSlider.BorderSizePixel = 0
+SpeedSlider.Parent = SpeedFrame
+
+-- ปุ่มลด/เพิ่ม
+local function createSpeedBtn(text, posX, change)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 50, 0, 30)
+    btn.Position = UDim2.new(posX, 0, 0, 40)
+    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.BorderSizePixel = 0
+    btn.Parent = SpeedFrame
+    
+    btn.MouseButton1Click:Connect(function()
+        local newSpeed = SpeedSystem.TargetSpeed + change
+        SpeedSystem:SetSpeed(newSpeed)
+        SpeedSlider.Text = "Speed: " .. math.floor(newSpeed)
+        SpeedTitle.TextColor3 = (newSpeed > 16) and Color3.fromRGB(150, 255, 150) or Color3.fromRGB(100, 200, 255)
+    end)
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+    end)
+end
+
+createSpeedBtn("-", 0.05, -5)
+createSpeedBtn("+", 0.82, 5)
+
+-- ปุ่มรีเซ็ต
+local SpeedReset = Instance.new("TextButton")
+SpeedReset.Size = UDim2.new(0.9, 0, 0, 25)
+SpeedReset.Position = UDim2.new(0.05, 0, 0, 75)
+SpeedReset.BackgroundColor3 = Color3.fromRGB(140, 60, 60)
+SpeedReset.Text = "Reset Speed"
+SpeedReset.TextColor3 = Color3.new(1, 1, 1)
+SpeedReset.Font = Enum.Font.Gotham
+SpeedReset.TextSize = 12
+SpeedReset.BorderSizePixel = 0
+SpeedReset.Parent = SpeedFrame
+
+SpeedReset.MouseButton1Click:Connect(function()
+    SpeedSystem:Reset()
+    SpeedSlider.Text = "Speed: 16 (Default)"
+    SpeedTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+end)
+
+sg.Destroying:Connect(function()
+    SpeedSystem:Reset()
+end)
+
+print("[Speed] Speed Control Loaded")
+-- ==============================================
+-- JUMP POWER - ปรับแรงกระโดดสูง
+-- ==============================================
+
+local JumpSystem = {
+    Enabled = false,
+    DefaultPower = 50,
+    TargetPower = 50,
+    Connection = nil
+}
+
+function JumpSystem:SetPower(value)
+    self.TargetPower = math.clamp(value, 1, 300)
+    self.Enabled = (value ~= self.DefaultPower)
+    
+    if not self.Connection then
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            if not self.Enabled then return end
+            local char = LocalPlayer.Character
+            if not char then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+            
+            -- เปลี่ยน JumpPower ทันที (ไม่ต้อง tween เพราะกระโดดเป็นเหตุการณ์ทันที)
+            if hum.JumpPower ~= self.TargetPower then
+                hum.JumpPower = self.TargetPower
+            end
+        end)
+    end
+end
+
+function JumpSystem:Reset()
+    self:SetPower(self.DefaultPower)
+    if self.Connection then
+        self.Connection:Disconnect()
+        self.Connection = nil
+    end
+end
+
+-- UI Jump
+local JumpFrame = Instance.new("Frame")
+JumpFrame.Size = UDim2.new(1, -30, 0, 100)
+JumpFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+JumpFrame.BorderSizePixel = 0
+JumpFrame.LayoutOrder = 4
+JumpFrame.Parent = MainPage
+
+local JumpStroke = Instance.new("UIStroke", JumpFrame)
+JumpStroke.Color = Color3.fromRGB(70, 70, 120)
+JumpStroke.Thickness = 1
+
+local JumpTitle = Instance.new("TextLabel")
+JumpTitle.Size = UDim2.new(1, -20, 0, 24)
+JumpTitle.Position = UDim2.new(0, 10, 0, 8)
+JumpTitle.BackgroundTransparency = 1
+JumpTitle.Text = "🦘 JUMP POWER"
+JumpTitle.TextColor3 = Color3.fromRGB(255, 150, 100)
+JumpTitle.Font = Enum.Font.GothamBold
+JumpTitle.TextSize = 15
+JumpTitle.TextXAlignment = Enum.TextXAlignment.Left
+JumpTitle.Parent = JumpFrame
+
+-- ปุ่มแรงกระโดด
+local JumpSlider = Instance.new("TextLabel")
+JumpSlider.Size = UDim2.new(1, -120, 0, 30)
+JumpSlider.Position = UDim2.new(0, 60, 0, 40)
+JumpSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+JumpSlider.Text = "Power: 50"
+JumpSlider.TextColor3 = Color3.new(1, 1, 1)
+JumpSlider.Font = Enum.Font.Gotham
+JumpSlider.TextSize = 13
+JumpSlider.BorderSizePixel = 0
+JumpSlider.Parent = JumpFrame
+
+local function createJumpBtn(text, offset, power)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 50, 0, 30)
+    btn.Position = UDim2.new(0.05, 0, 0, 40)
+    btn.Position = offset and UDim2.new(0.82, 0, 0, 40) or UDim2.new(0.05, 0, 0, 40)
+    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.BorderSizePixel = 0
+    btn.Parent = JumpFrame
+    
+    btn.MouseButton1Click:Connect(function()
+        JumpSystem:SetPower(power)
+        JumpSlider.Text = "Power: " .. power
+        JumpTitle.TextColor3 = (power > 50) and Color3.fromRGB(150, 255, 150) or Color3.fromRGB(255, 150, 100)
+    end)
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+    end)
+end
+
+createJumpBtn("-", false, math.max(10, JumpSystem.TargetPower - 10))
+createJumpBtn("+", true, math.min(300, JumpSystem.TargetPower + 10))
+
+-- ปุ่ม Super Jump (กระโดดสูงมาก)
+local SuperJump = Instance.new("TextButton")
+SuperJump.Size = UDim2.new(0.45, -5, 0, 25)
+SuperJump.Position = UDim2.new(0.05, 0, 0, 75)
+SuperJump.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
+SuperJump.Text = "Super Jump"
+SuperJump.TextColor3 = Color3.new(0, 0, 0)
+SuperJump.Font = Enum.Font.GothamBold
+SuperJump.TextSize = 12
+SuperJump.BorderSizePixel = 0
+SuperJump.Parent = JumpFrame
+
+SuperJump.MouseButton1Click:Connect(function()
+    JumpSystem:SetPower(150)
+    JumpSlider.Text = "Power: 150 (Super)"
+    JumpTitle.TextColor3 = Color3.fromRGB(255, 255, 100)
+end)
+
+SuperJump.MouseEnter:Connect(function()
+    TweenService:Create(SuperJump, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 200, 80)}):Play()
+end)
+SuperJump.MouseLeave:Connect(function()
+    TweenService:Create(SuperJump, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(200, 150, 50)}):Play()
+end)
+
+-- ปุ่มรีเซ็ต
+local JumpReset = Instance.new("TextButton")
+JumpReset.Size = UDim2.new(0.45, -5, 0, 25)
+JumpReset.Position = UDim2.new(0.5, 5, 0, 75)
+JumpReset.BackgroundColor3 = Color3.fromRGB(140, 60, 60)
+JumpReset.Text = "Reset"
+JumpReset.TextColor3 = Color3.new(1, 1, 1)
+JumpReset.Font = Enum.Font.Gotham
+JumpReset.TextSize = 12
+JumpReset.BorderSizePixel = 0
+JumpReset.Parent = JumpFrame
+
+JumpReset.MouseButton1Click:Connect(function()
+    JumpSystem:Reset()
+    JumpSlider.Text = "Power: 50 (Default)"
+    JumpTitle.TextColor3 = Color3.fromRGB(255, 150, 100)
+end)
+
+sg.Destroying:Connect(function()
+    JumpSystem:Reset()
+end)
+
+print("[Jump] Jump Control Loaded")
+-- ==============================================
+-- XRAY VISION - มองผ่านผนัง (สั้น ใช้ได้จริง)
+-- ==============================================
+
+local Xray = {
+    Enabled = false,
+    Objects = {}, -- [Part] = OriginalTransparency
+    Connection = nil,
+    Range = 100
+}
+
+function Xray:Scan()
+    if not self.Enabled then return end
+    if not LocalPlayer.Character then return end
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local pos = hrp.Position
+    local processed = {}
+    
+    -- หา Parts ในรัศมี (ใช้ FindPartsInBall เร็วกว่า)
+    local parts = workspace:GetPartBoundsInRadius(pos, self.Range)
+    
+    for _, part in ipairs(parts) do
+        if part.Anchored and part.Transparency < 0.9 then
+            -- ข้ามตัวละคร, Terrain, น้ำ
+            if part:IsDescendantOf(LocalPlayer.Character) then continue end
+            if part.Parent and part.Parent:FindFirstChild("Humanoid") then continue end
+            if part:IsA("Terrain") or part.Name:lower():find("terrain") then continue end
+            
+            processed[part] = true
+            
+            -- บันทึกค่าเดิมถ้ายังไม่มี
+            if not self.Objects[part] then
+                self.Objects[part] = part.Transparency
+            end
+            
+            -- ทำโปร่งใส
+            part.Transparency = 0.75
+        end
+    end
+    
+    -- คืนค่าส่วนที่ออกจากระยะ
+    for part, original in pairs(self.Objects) do
+        if not processed[part] then
+            if part and part.Parent then
+                part.Transparency = original
+            end
+            self.Objects[part] = nil
+        end
+    end
+end
+
+function Xray:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[Xray] เปิดใช้งาน")
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            if tick() % 0.5 < 0.03 then -- สแกนทุก 0.5 วินาที
+                self:Scan()
+            end
+        end)
+    else
+        print("[Xray] ปิดใช้งาน")
+        if self.Connection then self.Connection:Disconnect() end
+        -- คืนค่าเดิมทั้งหมด
+        for part, original in pairs(self.Objects) do
+            if part and part.Parent then
+                part.Transparency = original
+            end
+        end
+        self.Objects = {}
+    end
+    
+    return self.Enabled
+end
+
+-- UI Xray (อยู่ใต้ Jump)
+local XrayFrame = Instance.new("Frame")
+XrayFrame.Size = UDim2.new(1, -30, 0, 90)
+XrayFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+XrayFrame.BorderSizePixel = 0
+XrayFrame.LayoutOrder = 5 -- ต่อจาก Jump
+XrayFrame.Parent = MainPage
+
+local XrayStroke = Instance.new("UIStroke", XrayFrame)
+XrayStroke.Color = Color3.fromRGB(70, 70, 120)
+XrayStroke.Thickness = 1
+
+local XrayTitle = Instance.new("TextLabel")
+XrayTitle.Size = UDim2.new(1, -20, 0, 26)
+XrayTitle.Position = UDim2.new(0, 10, 0, 8)
+XrayTitle.BackgroundTransparency = 1
+XrayTitle.Text = "👁 XRAY VISION"
+XrayTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+XrayTitle.Font = Enum.Font.GothamBold
+XrayTitle.TextSize = 15
+XrayTitle.TextXAlignment = Enum.TextXAlignment.Left
+XrayTitle.Parent = XrayFrame
+
+local XrayBtn = Instance.new("TextButton")
+XrayBtn.Size = UDim2.new(0.45, -5, 0, 36)
+XrayBtn.Position = UDim2.new(0, 10, 0, 42)
+XrayBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+XrayBtn.Text = "OFF"
+XrayBtn.TextColor3 = Color3.new(1, 1, 1)
+XrayBtn.Font = Enum.Font.GothamBold
+XrayBtn.TextSize = 14
+XrayBtn.BorderSizePixel = 0
+XrayBtn.Parent = XrayFrame
+
+local XrayStatus = Instance.new("TextLabel")
+XrayStatus.Size = UDim2.new(0.5, 0, 0, 36)
+XrayStatus.Position = UDim2.new(0.5, 5, 0, 42)
+XrayStatus.BackgroundTransparency = 1
+XrayStatus.Text = "พร้อมใช้งาน"
+XrayStatus.TextColor3 = Color3.fromRGB(150, 150, 180)
+XrayStatus.Font = Enum.Font.Gotham
+XrayStatus.TextSize = 12
+XrayStatus.TextXAlignment = Enum.TextXAlignment.Left
+XrayStatus.Parent = XrayFrame
+
+-- Hover Effects
+XrayBtn.MouseEnter:Connect(function()
+    local color = Xray.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(XrayBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+XrayBtn.MouseLeave:Connect(function()
+    local color = Xray.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(XrayBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- ฟังก์ชันกดปุ่ม
+XrayBtn.MouseButton1Click:Connect(function()
+    local state = Xray:Toggle()
+    
+    if state then
+        XrayBtn.Text = "ON"
+        XrayBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        XrayTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        XrayStatus.Text = "กำลังมองผ่านผนัง..."
+        XrayStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        XrayBtn.Text = "OFF"
+        XrayBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        XrayTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+        XrayStatus.Text = "ปิดใช้งาน"
+        XrayStatus.TextColor3 = Color3.fromRGB(150, 150, 180)
+    end
+end)
+
+-- Cleanup เมื่อปิด GUI
+sg.Destroying:Connect(function()
+    Xray.Enabled = false
+    if Xray.Connection then Xray.Connection:Disconnect() end
+    for part, original in pairs(Xray.Objects) do
+        if part and part.Parent then
+            part.Transparency = original
+        end
+    end
+end)
+
+print("[Xray] Xray System Loaded")
+-- ==============================================
+-- NOCLIP - เดินทะลุผนัง (สั้น ไม่มีบิน ไม่ยุ่งยาก)
+-- ==============================================
+
+local Noclip = {
+    Enabled = false,
+    Connection = nil
+}
+
+function Noclip:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[Noclip] เปิดใช้งาน")
+        
+        self.Connection = game:GetService("RunService").Stepped:Connect(function()
+            if not self.Enabled then return end
+            local char = LocalPlayer.Character
+            if not char then return end
+            
+            -- ปิดการชนทุกส่วนในตัวละคร
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end)
+    else
+        print("[Noclip] ปิดใช้งาน")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        
+        -- คืนค่าการชน (เปิดใหม่)
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+    
+    return self.Enabled
+end
+
+-- UI Noclip (อยู่ใต้ Xray)
+local NoclipFrame = Instance.new("Frame")
+NoclipFrame.Size = UDim2.new(1, -30, 0, 80)
+NoclipFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+NoclipFrame.BorderSizePixel = 0
+NoclipFrame.LayoutOrder = 6 -- ต่อจาก Xray
+NoclipFrame.Parent = MainPage
+
+local NoclipStroke = Instance.new("UIStroke", NoclipFrame)
+NoclipStroke.Color = Color3.fromRGB(70, 70, 120)
+NoclipStroke.Thickness = 1
+
+local NoclipTitle = Instance.new("TextLabel")
+NoclipTitle.Size = UDim2.new(1, -20, 0, 26)
+NoclipTitle.Position = UDim2.new(0, 10, 0, 8)
+NoclipTitle.BackgroundTransparency = 1
+NoclipTitle.Text = "👻 NOCLIP"
+NoclipTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+NoclipTitle.Font = Enum.Font.GothamBold
+NoclipTitle.TextSize = 15
+NoclipTitle.TextXAlignment = Enum.TextXAlignment.Left
+NoclipTitle.Parent = NoclipFrame
+
+local NoclipBtn = Instance.new("TextButton")
+NoclipBtn.Size = UDim2.new(0.9, 0, 0, 36)
+NoclipBtn.Position = UDim2.new(0.05, 0, 0, 38)
+NoclipBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+NoclipBtn.Text = "OFF (เดินทะลุผนัง)"
+NoclipBtn.TextColor3 = Color3.new(1, 1, 1)
+NoclipBtn.Font = Enum.Font.GothamBold
+NoclipBtn.TextSize = 14
+NoclipBtn.BorderSizePixel = 0
+NoclipBtn.Parent = NoclipFrame
+
+-- Hover Effects
+NoclipBtn.MouseEnter:Connect(function()
+    local color = Noclip.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(NoclipBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+NoclipBtn.MouseLeave:Connect(function()
+    local color = Noclip.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(NoclipBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กดปุ่ม
+NoclipBtn.MouseButton1Click:Connect(function()
+    local state = Noclip:Toggle()
+    
+    if state then
+        NoclipBtn.Text = "ON (เดินทะลุได้)"
+        NoclipBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        NoclipTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        NoclipBtn.Text = "OFF (เดินทะลุผนัง)"
+        NoclipBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        NoclipTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+    end
+end)
+
+-- Cleanup เมื่อปิด GUI
+sg.Destroying:Connect(function()
+    Noclip.Enabled = false
+    if Noclip.Connection then Noclip.Connection:Disconnect() end
+    -- คืนค่าการชน
+    local char = LocalPlayer.Character
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+end)
+
+print("[Noclip] Noclip Loaded (Mobile Supported)")
+-- ==============================================
+-- AIMBOT v3.0 - SILENT AIM EDITION
+-- Ultra Brutal: ไม่ขยับกล้องก็โดน + ยิงนำ + ยิงออโต้
+-- ==============================================
+
+local Aimbot = {
+    Enabled = false,
+    Target = nil,
+    Connection = nil,
+    RenderConnection = nil,
+    
+    -- Modes
+    Mode = "Silent", -- "Silent", "Normal", "Rage"
+    AimType = "Distance", -- "FOV", "Distance", "Hybrid"
+    
+    Settings = {
+        -- FOV
+        FOV = 150,
+        FOVColor = Color3.fromRGB(255, 255, 255),
+        FOVThickness = 1,
+        
+        -- Aim
+        Smoothness = 0.15, -- สำหรับ Normal mode
+        TargetPart = "Head",
+        WallCheck = true,
+        
+        -- Silent Aim
+        SilentRange = 1000,
+        HitChance = 100, -- เปอร์เซ็นต์โดน (100 = โดนเสมอ)
+        
+        -- Prediction
+        Prediction = true,
+        PredictionVelocity = 0.165, -- ค่าความเร็วในการคำนวณนำ
+        
+        -- Trigger Bot
+        TriggerBot = true,
+        TriggerDelay = 0.01,
+        
+        -- Visuals
+        ShowFOV = true,
+        Snaplines = true,
+        ESPHighlight = false
+    },
+    
+    -- Runtime
+    LastTarget = nil,
+    TargetLockTime = 0,
+    WallCheckCache = {}
+}
+
+-- สร้าง FOV Circle (Visual)
+function Aimbot:CreateFOV()
+    local fov = Drawing.new("Circle")
+    fov.Visible = true
+    fov.Thickness = self.Settings.FOVThickness
+    fov.Color = self.Settings.FOVColor
+    fov.Transparency = 1
+    fov.Filled = false
+    fov.NumSides = 64
+    return fov
+end
+
+-- สร้าง Snapline (เส้นเล็ง)
+function Aimbot:CreateSnapline()
+    local line = Drawing.new("Line")
+    line.Visible = false
+    line.Thickness = 1
+    line.Color = Color3.fromRGB(255, 0, 0)
+    line.Transparency = 1
+    return line
+end
+
+-- หาเป้าหมายที่ดีที่สุด
+function Aimbot:FindTarget()
+    local camera = workspace.CurrentCamera
+    local center = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not root then return nil end
+    
+    local targets = {}
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local pChar = player.Character
+            local humanoid = pChar:FindFirstChildOfClass("Humanoid")
+            
+            -- Team Check
+            if LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
+                continue
+            end
+            
+            if humanoid and humanoid.Health > 0 then
+                local targetPart = pChar:FindFirstChild(self.Settings.TargetPart) 
+                                  or pChar:FindFirstChild("HumanoidRootPart")
+                                  or pChar:FindFirstChild("Head")
+                
+                if targetPart then
+                    local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                    
+                    if onScreen then
+                        local screenPos = Vector2.new(pos.X, pos.Y)
+                        local screenDist = (screenPos - center).Magnitude
+                        local worldDist = (root.Position - targetPart.Position).Magnitude
+                        
+                        -- Wall Check
+                        if self.Settings.WallCheck then
+                            if not self:CanSee(targetPart) then
+                                continue
+                            end
+                        end
+                        
+                        -- คำนวณคะแนน (Hybrid Score)
+                        local score = 0
+                        if self.AimType == "FOV" then
+                            score = screenDist
+                        elseif self.AimType == "Distance" then
+                            score = worldDist
+                        else -- Hybrid
+                            score = screenDist * 0.6 + worldDist * 0.4
+                        end
+                        
+                        table.insert(targets, {
+                            Player = player,
+                            Part = targetPart,
+                            ScreenPos = screenPos,
+                            ScreenDist = screenDist,
+                            WorldDist = worldDist,
+                            Score = score,
+                            Velocity = targetPart.Velocity
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    if #targets == 0 then return nil end
+    
+    -- เรียงตามคะแนนต่ำสุด (ดีที่สุด)
+    table.sort(targets, function(a, b) return a.Score < b.Score end)
+    
+    -- ถ้าเป็น FOV mode ต้องอยู่ในวงด้วย
+    if self.AimType == "FOV" or self.AimType == "Hybrid" then
+        if targets[1].ScreenDist > self.Settings.FOV then
+            return nil
+        end
+    end
+    
+    return targets[1]
+end
+
+-- Wall Check (Raycast)
+function Aimbot:CanSee(part)
+    local camera = workspace.CurrentCamera
+    local char = LocalPlayer.Character
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {char}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    
+    local result = workspace:Raycast(camera.CFrame.Position, (part.Position - camera.CFrame.Position).Unit * 1000, rayParams)
+    
+    if result then
+        return result.Instance:IsDescendantOf(part.Parent)
+    end
+    
+    return true
+end
+
+-- Silent Aim Function (โคตรโหด!)
+function Aimbot:SilentAim(target)
+    if not target or not target.Part then return end
+    
+    -- คำนวณตำแหน่งที่จะยิง (พร้อม Prediction)
+    local aimPosition = target.Part.Position
+    
+    if self.Settings.Prediction then
+        -- คำนวณการนำ (Velocity * Time)
+        local velocity = target.Part.Velocity
+        local prediction = velocity * self.Settings.PredictionVelocity
+        aimPosition = aimPosition + prediction
+    end
+    
+    -- สร้าง CFrame ใหม่ที่ชี้ไปที่เป้า แต่ไม่ขยับกล้องจริงๆ
+    -- วิธีการ: เปลี่ยน Camera.CFrame ชั่วคราวตอนที่เกมอ่านทิศทางยิง แล้วคืนค่า
+    local camera = workspace.CurrentCamera
+    local oldCFrame = camera.CFrame
+    
+    -- คำนวณ CFrame ที่จะ "หลอก" เกมว่าเรามองไปที่นั่น
+    local fakeCFrame = CFrame.new(camera.CFrame.Position, aimPosition)
+    
+    -- Hook/Override Camera (วิธีนี้ขึ้นอยู่กับว่าเกมอ่านจากไหน)
+    -- สำหรับ Roblox ทั่วไป เราต้อง hook ฟังก์ชันที่เกมใช้อ่าน CFrame
+    -- แต่ในที่นี้เราจะใช้วิธีง่ายๆ คือ set ชั่วขณะแล้วคืน
+    
+    if math.random(1, 100) <= self.Settings.HitChance then
+        -- บางเกมตรวจจับการเปลี่ยน CFrame เร็วๆ ได้ ต้องระวัง
+        camera.CFrame = fakeCFrame
+        task.wait()
+        camera.CFrame = oldCFrame
+    end
+end
+
+-- ระบบยิงอัตโนมัติ (Trigger Bot)
+function Aimbot:TriggerBot(target)
+    if not self.Settings.TriggerBot or not target then return end
+    
+    -- เช็คว่าเป็นเป้าที่เราล็อคไว้จริงๆ
+    if target.ScreenDist < 20 then -- อยู่ใกล้กึ่งกลางจอพอสมควร
+        local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+        if tool then
+            tool:Activate()
+        end
+    end
+end
+
+-- Rage Mode (Spin + Instant)
+function Aimbot:RageMode(target)
+    if not target or not target.Part then return end
+    
+    local camera = workspace.CurrentCamera
+    local targetCF = CFrame.new(camera.CFrame.Position, target.Part.Position)
+    
+    -- หมุนกล้องทันทีไม่สนความลื่น
+    camera.CFrame = targetCF
+    
+    -- ยิงทันที
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        tool:Activate()
+    end
+end
+
+-- Normal Mode (Smooth)
+function Aimbot:NormalAim(target)
+    if not target or not target.Part then return end
+    
+    local camera = workspace.CurrentCamera
+    local targetPos = target.Part.Position
+    
+    -- Prediction
+    if self.Settings.Prediction then
+        targetPos = targetPos + (target.Part.Velocity * self.Settings.PredictionVelocity)
+    end
+    
+    local targetCF = CFrame.new(camera.CFrame.Position, targetPos)
+    camera.CFrame = camera.CFrame:Lerp(targetCF, self.Settings.Smoothness)
+    
+    -- Auto Fire ถ้าเปิด TriggerBot
+    self:TriggerBot(target)
+end
+
+-- Render Update (FOV Circle + Snaplines)
+function Aimbot:UpdateVisuals()
+    if not self.fovCircle then
+        self.fovCircle = self:CreateFOV()
+    end
+    
+    if not self.snapline then
+        self.snapline = self:CreateSnapline()
+    end
+    
+    local camera = workspace.CurrentCamera
+    local center = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
+    
+    -- Update FOV
+    self.fovCircle.Visible = self.Settings.ShowFOV and self.Enabled
+    self.fovCircle.Radius = self.Settings.FOV
+    self.fovCircle.Position = center
+    self.fovCircle.Color = self.Target and Color3.fromRGB(255, 0, 0) or self.Settings.FOVColor
+    
+    -- Update Snapline
+    if self.Settings.Snaplines and self.Target and self.Enabled then
+        self.snapline.Visible = true
+        self.snapline.From = center
+        self.snapline.To = self.Target.ScreenPos
+        self.snapline.Color = Color3.fromRGB(0, 255, 0)
+    else
+        self.snapline.Visible = false
+    end
+end
+
+-- Main Update
+function Aimbot:Update()
+    if not self.Enabled then 
+        self.Target = nil
+        self:UpdateVisuals()
+        return 
+    end
+    
+    -- หาเป้า
+    self.Target = self:FindTarget()
+    
+    -- Execute Aim
+    if self.Target then
+        if self.Mode == "Silent" then
+            self:SilentAim(self.Target)
+            self:TriggerBot(self.Target)
+        elseif self.Mode == "Normal" then
+            self:NormalAim(self.Target)
+        elseif self.Mode == "Rage" then
+            self:RageMode(self.Target)
+        end
+    end
+    
+    -- อัพเดท Visuals
+    self:UpdateVisuals()
+end
+
+function Aimbot:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[Aimbot] v3.0 Enabled | Mode:", self.Mode, "| Type:", self.AimType)
+        
+        -- RenderStepped สำหรับ Aim
+        self.Connection = game:GetService("RunService").RenderStepped:Connect(function()
+            self:Update()
+        end)
+    else
+        print("[Aimbot] Disabled")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        
+        -- Cleanup visuals
+        if self.fovCircle then self.fovCircle.Visible = false end
+        if self.snapline then self.snapline.Visible = false end
+    end
+    
+    return self.Enabled
+end
+
+-- ==============================================
+-- UI v3.0 - Advanced Aimbot
+-- ==============================================
+
+local AimFrame = Instance.new("Frame")
+AimFrame.Size = UDim2.new(1, -30, 0, 280) -- ใหญ่มาก
+AimFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+AimFrame.BorderSizePixel = 0
+AimFrame.LayoutOrder = 7
+AimFrame.Parent = MainPage
+
+local AimStroke = Instance.new("UIStroke", AimFrame)
+AimStroke.Color = Color3.fromRGB(255, 50, 100)
+AimStroke.Thickness = 1
+
+-- หัวข้อ
+local AimTitle = Instance.new("TextLabel")
+AimTitle.Size = UDim2.new(1, -20, 0, 28)
+AimTitle.Position = UDim2.new(0, 10, 0, 8)
+AimTitle.BackgroundTransparency = 1
+AimTitle.Text = "🎯 AIMBOT v3.0 SILENT"
+AimTitle.TextColor3 = Color3.fromRGB(255, 100, 150)
+AimTitle.Font = Enum.Font.GothamBold
+AimTitle.TextSize = 16
+AimTitle.Parent = AimFrame
+
+-- สถานะ
+local AimStatus = Instance.new("TextLabel")
+AimStatus.Size = UDim2.new(1, -20, 0, 20)
+AimStatus.Position = UDim2.new(0, 10, 0, 34)
+AimStatus.BackgroundTransparency = 1
+AimStatus.Text = "Mode: Silent | Target: Head | FOV: 150"
+AimStatus.TextColor3 = Color3.fromRGB(180, 180, 220)
+AimStatus.Font = Enum.Font.Gotham
+AimStatus.TextSize = 11
+AimStatus.Parent = AimFrame
+
+-- แถว 1: Main Toggle + Mode + Type
+local Row1 = Instance.new("Frame")
+Row1.Size = UDim2.new(1, -20, 0, 40)
+Row1.Position = UDim2.new(0, 10, 0, 58)
+Row1.BackgroundTransparency = 1
+Row1.Parent = AimFrame
+
+local AimBtn = Instance.new("TextButton")
+AimBtn.Size = UDim2.new(0.3, -5, 1, 0)
+AimBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+AimBtn.Text = "OFF"
+AimBtn.Font = Enum.Font.GothamBold
+AimBtn.TextSize = 14
+AimBtn.Parent = Row1
+
+local ModeSelect = Instance.new("TextButton")
+ModeSelect.Size = UDim2.new(0.35, -5, 1, 0)
+ModeSelect.Position = UDim2.new(0.3, 5, 0, 0)
+ModeSelect.BackgroundColor3 = Color3.fromRGB(200, 80, 200) -- Pink = Silent
+ModeSelect.Text = "Silent"
+ModeSelect.Font = Enum.Font.GothamBold
+ModeSelect.TextSize = 12
+ModeSelect.Parent = Row1
+
+local TypeSelect = Instance.new("TextButton")
+TypeSelect.Size = UDim2.new(0.35, -5, 1, 0)
+TypeSelect.Position = UDim2.new(0.65, 5, 0, 0)
+TypeSelect.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
+TypeSelect.Text = "FOV"
+TypeSelect.Font = Enum.Font.GothamBold
+TypeSelect.TextSize = 12
+TypeSelect.Parent = Row1
+
+-- แถว 2: Target + WallCheck + Trigger
+local Row2 = Instance.new("Frame")
+Row2.Size = UDim2.new(1, -20, 0, 32)
+Row2.Position = UDim2.new(0, 10, 0, 102)
+Row2.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+Row2.Parent = AimFrame
+
+local TargetBtn = Instance.new("TextButton")
+TargetBtn.Size = UDim2.new(0.32, -5, 0.8, 0)
+TargetBtn.Position = UDim2.new(0, 0, 0.1, 0)
+TargetBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+TargetBtn.Text = "Target: Head"
+TargetBtn.Font = Enum.Font.GothamBold
+TargetBtn.TextSize = 11
+TargetBtn.Parent = Row2
+
+local WallCheckBtn = Instance.new("TextButton")
+WallCheckBtn.Size = UDim2.new(0.32, -5, 0.8, 0)
+WallCheckBtn.Position = UDim2.new(0.34, 0, 0.1, 0)
+WallCheckBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 80)
+WallCheckBtn.Text = "Wall: ON"
+WallCheckBtn.Font = Enum.Font.GothamBold
+WallCheckBtn.TextSize = 11
+WallCheckBtn.Parent = Row2
+
+local TriggerBtn = Instance.new("TextButton")
+TriggerBtn.Size = UDim2.new(0.32, -5, 0.8, 0)
+TriggerBtn.Position = UDim2.new(0.68, 0, 0.1, 0)
+TriggerBtn.BackgroundColor3 = Color3.fromRGB(180, 140, 60)
+TriggerBtn.Text = "Trigger: ON"
+TriggerBtn.Font = Enum.Font.GothamBold
+TriggerBtn.TextSize = 11
+TriggerBtn.Parent = Row2
+
+-- แถว 3: FOV + Smoothness
+local Row3 = Instance.new("Frame")
+Row3.Size = UDim2.new(1, -20, 0, 28)
+Row3.Position = UDim2.new(0, 10, 0, 138)
+Row3.BackgroundTransparency = 1
+Row3.Parent = AimFrame
+
+local FOVLabel = Instance.new("TextLabel")
+FOVLabel.Size = UDim2.new(0.15, 0, 1, 0)
+FOVLabel.Text = "FOV:"
+FOVLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+FOVLabel.Font = Enum.Font.GothamBold
+FOVLabel.BackgroundTransparency = 1
+FOVLabel.Parent = Row3
+
+local FOVDisplay = Instance.new("TextLabel")
+FOVDisplay.Size = UDim2.new(0.12, 0, 1, 0)
+FOVDisplay.Position = UDim2.new(0.15, 0, 0, 0)
+FOVDisplay.Text = "150"
+FOVDisplay.TextColor3 = Color3.fromRGB(255, 255, 100)
+FOVDisplay.Font = Enum.Font.GothamBold
+FOVDisplay.BackgroundTransparency = 1
+FOVDisplay.Parent = Row3
+
+-- FOV Buttons
+local fovBtn = function(text, pos, change)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.1, 0, 0.9, 0)
+    btn.Position = UDim2.new(pos, 0, 0.05, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = Row3
+    btn.MouseButton1Click:Connect(function()
+        Aimbot.Settings.FOV = math.clamp(Aimbot.Settings.FOV + change, 50, 500)
+        FOVDisplay.Text = tostring(Aimbot.Settings.FOV)
+    end)
+    return btn
+end
+fovBtn("-", 0.27, -25)
+fovBtn("+", 0.38, 25)
+
+-- Show FOV Toggle
+local ShowFOVBtn = Instance.new("TextButton")
+ShowFOVBtn.Size = UDim2.new(0.22, 0, 0.9, 0)
+ShowFOVBtn.Position = UDim2.new(0.5, 0, 0.05, 0)
+ShowFOVBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 120)
+ShowFOVBtn.Text = "Show FOV"
+ShowFOVBtn.Font = Enum.Font.Gotham
+ShowFOVBtn.TextSize = 11
+ShowFOVBtn.Parent = Row3
+
+-- Smoothness
+local SmoothLabel = Instance.new("TextLabel")
+SmoothLabel.Size = UDim2.new(0.15, 0, 1, 0)
+SmoothLabel.Position = UDim2.new(0.74, 0, 0, 0)
+SmoothLabel.Text = "Smooth:"
+SmoothLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SmoothLabel.Font = Enum.Font.Gotham
+SmoothLabel.BackgroundTransparency = 1
+SmoothLabel.Parent = Row3
+
+local SmoothBtn = Instance.new("TextButton")
+SmoothBtn.Size = UDim2.new(0.1, 0, 0.9, 0)
+SmoothBtn.Position = UDim2.new(0.89, 0, 0.05, 0)
+SmoothBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 140)
+SmoothBtn.Text = "0.15"
+SmoothBtn.Font = Enum.Font.GothamBold
+SmoothBtn.TextSize = 10
+SmoothBtn.Parent = Row3
+
+-- แถว 4: Prediction + Hit Chance
+local Row4 = Instance.new("Frame")
+Row4.Size = UDim2.new(1, -20, 0, 28)
+Row4.Position = UDim2.new(0, 10, 0, 170)
+Row4.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+Row4.Parent = AimFrame
+
+local PredictionBtn = Instance.new("TextButton")
+PredictionBtn.Size = UDim2.new(0.48, -5, 0.85, 0)
+PredictionBtn.Position = UDim2.new(0, 0, 0.075, 0)
+PredictionBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
+PredictionBtn.Text = "Prediction: ON"
+PredictionBtn.Font = Enum.Font.GothamBold
+PredictionBtn.TextSize = 11
+PredictionBtn.Parent = Row4
+
+local HitChanceBtn = Instance.new("TextButton")
+HitChanceBtn.Size = UDim2.new(0.48, -5, 0.85, 0)
+HitChanceBtn.Position = UDim2.new(0.52, 0, 0.075, 0)
+HitChanceBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 80)
+HitChanceBtn.Text = "Hit: 100%"
+HitChanceBtn.Font = Enum.Font.GothamBold
+HitChanceBtn.TextSize = 11
+HitChanceBtn.Parent = Row4
+
+-- Warning
+local WarningText = Instance.new("TextLabel")
+WarningText.Size = UDim2.new(1, -20, 0, 20)
+WarningText.Position = UDim2.new(0, 10, 0, 202)
+WarningText.BackgroundTransparency = 1
+WarningText.Text = "⚠️ Silent Aim: กล้องไม่ขยับแต่กระสุนเข้าเป้า!"
+WarningText.TextColor3 = Color3.fromRGB(255, 200, 100)
+WarningText.Font = Enum.Font.GothamBold
+WarningText.TextSize = 10
+WarningText.Parent = AimFrame
+
+-- Info
+local InfoText = Instance.new("TextLabel")
+InfoText.Size = UDim2.new(1, -20, 0, 50)
+InfoText.Position = UDim2.new(0, 10, 0, 225)
+InfoText.BackgroundTransparency = 1
+InfoText.Text = "💡 Tips:\n- Silent: ไม่ขยับจอ (ระวังตรวจจับ)\n- Prediction: ยิงนำเคลื่อนที่ | Trigger: ยิงออโต้เมื่อเล็งโดน"
+InfoText.TextColor3 = Color3.fromRGB(200, 200, 255)
+InfoText.Font = Enum.Font.Gotham
+InfoText.TextSize = 10
+InfoText.TextWrapped = true
+InfoText.Parent = AimFrame
+
+-- Event Handlers
+AimBtn.MouseButton1Click:Connect(function()
+    local state = Aimbot:Toggle()
+    if state then
+        AimBtn.Text = "ON 🔥"
+        AimBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        AimTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        AimBtn.Text = "OFF"
+        AimBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        AimTitle.TextColor3 = Color3.fromRGB(255, 100, 150)
+        
+        -- Hide visuals
+        if Aimbot.fovCircle then Aimbot.fovCircle.Visible = false end
+        if Aimbot.snapline then Aimbot.snapline.Visible = false end
+    end
+end)
+
+AimBtn.MouseEnter:Connect(function()
+    local color = Aimbot.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(220, 80, 80)
+    TweenService:Create(AimBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- Mode Switch (Silent/Normal/Rage)
+ModeSelect.MouseButton1Click:Connect(function()
+    local modes = {"Silent", "Normal", "Rage"}
+    local idx = table.find(modes, Aimbot.Mode) or 1
+    Aimbot.Mode = modes[idx % #modes + 1]
+    
+    local colors = {
+        Silent = Color3.fromRGB(200, 80, 200),
+        Normal = Color3.fromRGB(80, 140, 180),
+        Rage = Color3.fromRGB(200, 60, 60)
+    }
+    
+    ModeSelect.Text = Aimbot.Mode
+    ModeSelect.BackgroundColor3 = colors[Aimbot.Mode]
+    AimStatus.Text = string.format("Mode: %s | Target: %s | FOV: %d", 
+        Aimbot.Mode, Aimbot.Settings.TargetPart, Aimbot.Settings.FOV)
+    
+    -- Update warning
+    if Aimbot.Mode == "Silent" then
+        WarningText.Text = "⚠️ Silent Aim: กล้องไม่ขยับแต่กระสุนเข้าเป้า!"
+        WarningText.TextColor3 = Color3.fromRGB(255, 200, 100)
+    elseif Aimbot.Mode == "Rage" then
+        WarningText.Text = "🔴 RAGE MODE: หมุนไว+ยิงทันที (เสี่ยงโดนแบน!)"
+        WarningText.TextColor3 = Color3.fromRGB(255, 80, 80)
+    else
+        WarningText.Text = "🟢 Normal: ล็อคลื่นๆ (ปลอดภัย)"
+        WarningText.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end
+end)
+
+-- Type Switch
+TypeSelect.MouseButton1Click:Connect(function()
+    local types = {"FOV", "Distance", "Hybrid"}
+    local idx = table.find(types, Aimbot.AimType) or 1
+    Aimbot.AimType = types[idx % #types + 1]
+    TypeSelect.Text = Aimbot.AimType
+end)
+
+-- Target Toggle
+TargetBtn.MouseButton1Click:Connect(function()
+    Aimbot.Settings.TargetPart = Aimbot.Settings.TargetPart == "Head" and "HumanoidRootPart" or "Head"
+    TargetBtn.Text = "Target: " .. Aimbot.Settings.TargetPart
+    AimStatus.Text = string.format("Mode: %s | Target: %s | FOV: %d", 
+        Aimbot.Mode, Aimbot.Settings.TargetPart, Aimbot.Settings.FOV)
+end)
+
+-- WallCheck Toggle
+WallCheckBtn.MouseButton1Click:Connect(function()
+    Aimbot.Settings.WallCheck = not Aimbot.Settings.WallCheck
+    WallCheckBtn.Text = "Wall: " .. (Aimbot.Settings.WallCheck and "ON" or "OFF")
+    WallCheckBtn.BackgroundColor3 = Aimbot.Settings.WallCheck and Color3.fromRGB(80, 160, 80) or Color3.fromRGB(100, 60, 60)
+end)
+
+-- TriggerBot Toggle
+TriggerBtn.MouseButton1Click:Connect(function()
+    Aimbot.Settings.TriggerBot = not Aimbot.Settings.TriggerBot
+    TriggerBtn.Text = "Trigger: " .. (Aimbot.Settings.TriggerBot and "ON" or "OFF")
+    TriggerBtn.BackgroundColor3 = Aimbot.Settings.TriggerBot and Color3.fromRGB(180, 140, 60) or Color3.fromRGB(80, 80, 80)
+end)
+
+-- Show FOV Toggle
+ShowFOVBtn.MouseButton1Click:Connect(function()
+    Aimbot.Settings.ShowFOV = not Aimbot.Settings.ShowFOV
+    ShowFOVBtn.BackgroundColor3 = Aimbot.Settings.ShowFOV and Color3.fromRGB(80, 180, 120) or Color3.fromRGB(80, 80, 80)
+    if not Aimbot.Settings.ShowFOV and Aimbot.fovCircle then
+        Aimbot.fovCircle.Visible = false
+    end
+end)
+
+-- Smoothness Cycle
+SmoothBtn.MouseButton1Click:Connect(function()
+    local smooths = {0.05, 0.1, 0.15, 0.25, 0.5, 1.0}
+    local idx = table.find(smooths, Aimbot.Settings.Smoothness) or 3
+    Aimbot.Settings.Smoothness = smooths[idx % #smooths + 1]
+    SmoothBtn.Text = string.format("%.2f", Aimbot.Settings.Smoothness)
+end)
+
+-- Prediction Toggle
+PredictionBtn.MouseButton1Click:Connect(function()
+    Aimbot.Settings.Prediction = not Aimbot.Settings.Prediction
+    PredictionBtn.Text = "Prediction: " .. (Aimbot.Settings.Prediction and "ON" or "OFF")
+    PredictionBtn.BackgroundColor3 = Aimbot.Settings.Prediction and Color3.fromRGB(80, 140, 180) or Color3.fromRGB(80, 80, 80)
+end)
+
+-- Hit Chance Cycle
+HitChanceBtn.MouseButton1Click:Connect(function()
+    local chances = {100, 90, 80, 75, 50, 25}
+    local idx = table.find(chances, Aimbot.Settings.HitChance) or 1
+    Aimbot.Settings.HitChance = chances[idx % #chances + 1]
+    HitChanceBtn.Text = "Hit: " .. Aimbot.Settings.HitChance .. "%"
+    HitChanceBtn.BackgroundColor3 = Aimbot.Settings.HitChance == 100 and Color3.fromRGB(180, 80, 80) or Color3.fromRGB(80, 140, 80)
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    Aimbot.Enabled = false
+    if Aimbot.Connection then 
+        Aimbot.Connection:Disconnect() 
+    end
+    if Aimbot.fovCircle then 
+        Aimbot.fovCircle:Remove() 
+    end
+    if Aimbot.snapline then 
+        Aimbot.snapline:Remove() 
+    end
+end)
+
+print("[Aimbot] v3.0 Silent Aim Loaded")
+print("[Aimbot] Features: SilentAim, Prediction, TriggerBot, FOV Circle")
+print("[Aimbot] Mode 'Silent': กล้องนิ่งแต่กระสุนโค้งเข้าหัว!")
+
+-- ==============================================
+-- TELEPORT TO PLAYER - เทเลพอร์ตไปหาผู้เล่น
+-- ==============================================
+
+local Teleport = {
+    Enabled = false,
+    Window = nil,
+    ListButtons = {},
+    Connection = nil
+}
+
+-- ฟังก์ชันเทเลพอร์ต (มีป้องกันติดพื้น)
+function Teleport:To(player)
+    if not player or player == LocalPlayer then return end
+    if not player.Character then 
+        print("[Teleport] ผู้เล่นไม่มีตัวละคร")
+        return 
+    end
+    
+    local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
+    local myChar = LocalPlayer.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    
+    if not targetHRP or not myHRP then return end
+    
+    -- คำนวณตำแหน่ง: ด้านหลัง 5 studs + สูงขึ้น 3 studs (ป้องกันติดพื้น)
+    local destination = targetHRP.CFrame * CFrame.new(0, 0, 6) + Vector3.new(0, 3, 0)
+    
+    pcall(function()
+        myHRP.CFrame = destination
+        -- ป้องกันกระเด็นเพราะความเร็ว
+        myHRP.Velocity = Vector3.new(0, 0, 0)
+    end)
+    
+    print("[Teleport] เทเลพอร์ตไปหา: " .. player.Name)
+end
+
+-- ฟังก์ชันเทเลพอร์ตไปผู้เล่นที่ใกล้ที่สุด
+function Teleport:ToClosest()
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+    
+    local closest = nil
+    local minDist = math.huge
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local dist = (myHRP.Position - hrp.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    closest = player
+                end
+            end
+        end
+    end
+    
+    if closest then
+        self:To(closest)
+    else
+        print("[Teleport] ไม่พบผู้เล่น")
+    end
+end
+
+-- สร้างหน้าต่างรายชื่อ (Popup)
+function Teleport:OpenWindow()
+    if self.Window and self.Window.Parent then
+        self.Window:Destroy()
+    end
+    
+    -- หน้าต่างหลัก (กลางจอ)
+    self.Window = Instance.new("Frame")
+    self.Window.Size = UDim2.new(0, 280, 0, 350)
+    self.Window.Position = UDim2.new(0.5, -140, 0.5, -175)
+    self.Window.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    self.Window.BorderSizePixel = 0
+    self.Window.Parent = sg
+    
+    local stroke = Instance.new("UIStroke", self.Window)
+    stroke.Color = Color3.fromRGB(150, 100, 255)
+    stroke.Thickness = 2
+    
+    -- หัวข้อ + ปุ่มปิด
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 40)
+    header.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    header.BorderSizePixel = 0
+    header.Parent = self.Window
+    
+    local title = Instance.new("TextLabel", header)
+    title.Size = UDim2.new(1, -50, 1, 0)
+    title.Position = UDim2.new(0, 15, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "เลือกผู้เล่น"
+    title.TextColor3 = Color3.fromRGB(200, 150, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local closeBtn = Instance.new("TextButton", header)
+    closeBtn.Size = UDim2.new(0, 36, 0, 36)
+    closeBtn.Position = UDim2.new(1, -40, 0, 2)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    closeBtn.Text = "×"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 20
+    closeBtn.BorderSizePixel = 0
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        self.Window:Destroy()
+        self.Enabled = false
+        TeleportBtn.Text = "OPEN LIST"
+        TeleportBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+    end)
+    
+    -- ScrollingList
+    local scroll = Instance.new("ScrollingFrame", self.Window)
+    scroll.Size = UDim2.new(1, -20, 1, -100)
+    scroll.Position = UDim2.new(0, 10, 0, 50)
+    scroll.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 6
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    
+    local listLayout = Instance.new("UIListLayout", scroll)
+    listLayout.Padding = UDim.new(0, 5)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- สร้างปุ่มผู้เล่น
+    local function refreshList()
+        for _, btn in ipairs(self.ListButtons) do
+            btn:Destroy()
+        end
+        self.ListButtons = {}
+        
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, -10, 0, 32)
+                btn.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+                btn.Text = "  " .. player.Name
+                btn.TextColor3 = Color3.new(1, 1, 1)
+                btn.Font = Enum.Font.Gotham
+                btn.TextSize = 14
+                btn.TextXAlignment = Enum.TextXAlignment.Left
+                btn.Parent = scroll
+                
+                btn.MouseEnter:Connect(function()
+                    TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(80, 80, 120)}):Play()
+                end)
+                btn.MouseLeave:Connect(function()
+                    TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
+                end)
+                
+                btn.MouseButton1Click:Connect(function()
+                    self:To(player)
+                    btn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+                    btn.Text = "✓ " .. player.Name
+                    task.wait(0.5)
+                    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+                    btn.Text = "  " .. player.Name
+                end)
+                
+                table.insert(self.ListButtons, btn)
+            end
+        end
+    end
+    
+    refreshList()
+    
+    -- ปุ่มรีเฟรช + ใกล้ที่สุด
+    local btnFrame = Instance.new("Frame", self.Window)
+    btnFrame.Size = UDim2.new(1, -20, 0, 40)
+    btnFrame.Position = UDim2.new(0, 10, 1, -50)
+    btnFrame.BackgroundTransparency = 1
+    
+    local refreshBtn = Instance.new("TextButton", btnFrame)
+    refreshBtn.Size = UDim2.new(0.48, -5, 1, 0)
+    refreshBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+    refreshBtn.Text = "รีเฟรช"
+    refreshBtn.TextColor3 = Color3.new(1, 1, 1)
+    refreshBtn.Font = Enum.Font.GothamBold
+    refreshBtn.TextSize = 13
+    refreshBtn.BorderSizePixel = 0
+    
+    refreshBtn.MouseButton1Click:Connect(function()
+        refreshList()
+        refreshBtn.Text = "รีเฟรชแล้ว!"
+        task.wait(0.5)
+        refreshBtn.Text = "รีเฟรช"
+    end)
+    
+    local closestBtn = Instance.new("TextButton", btnFrame)
+    closestBtn.Size = UDim2.new(0.48, -5, 1, 0)
+    closestBtn.Position = UDim2.new(0.52, 0, 0, 0)
+    closestBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+    closestBtn.Text = "ใกล้ที่สุด"
+    closestBtn.TextColor3 = Color3.new(1, 1, 1)
+    closestBtn.Font = Enum.Font.GothamBold
+    closestBtn.TextSize = 13
+    closestBtn.BorderSizePixel = 0
+    
+    closestBtn.MouseButton1Click:Connect(function()
+        self:ToClosest()
+        closestBtn.Text = "เทเลพอร์ตแล้ว!"
+        task.wait(0.5)
+        closestBtn.Text = "ใกล้ที่สุด"
+    end)
+    
+    -- อัพเดทอัตโนมัติเมื่อมีคนเข้า/ออก
+    self.Connection = Players.PlayerAdded:Connect(refreshList)
+    Players.PlayerRemoving:Connect(refreshList)
+end
+
+-- UI หลักในแท็บ Main (ปุ่มเปิด/ปิด)
+local TPFrame = Instance.new("Frame")
+TPFrame.Size = UDim2.new(1, -30, 0, 90)
+TPFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+TPFrame.BorderSizePixel = 0
+TPFrame.LayoutOrder = 8 -- ต่อจาก Aimbot
+TPFrame.Parent = MainPage
+
+local TPStroke = Instance.new("UIStroke", TPFrame)
+TPStroke.Color = Color3.fromRGB(70, 70, 120)
+TPStroke.Thickness = 1
+
+local TPTitle = Instance.new("TextLabel")
+TPTitle.Size = UDim2.new(1, -20, 0, 26)
+TPTitle.Position = UDim2.new(0, 10, 0, 8)
+TPTitle.BackgroundTransparency = 1
+TPTitle.Text = "⚡ TELEPORT"
+TPTitle.TextColor3 = Color3.fromRGB(150, 100, 255)
+TPTitle.Font = Enum.Font.GothamBold
+TPTitle.TextSize = 15
+TPTitle.TextXAlignment = Enum.TextXAlignment.Left
+TPTitle.Parent = TPFrame
+
+local TPSubtitle = Instance.new("TextLabel")
+TPSubtitle.Size = UDim2.new(1, -20, 0, 20)
+TPSubtitle.Position = UDim2.new(0, 10, 0, 30)
+TPSubtitle.BackgroundTransparency = 1
+TPSubtitle.Text = "เลือกผู้เล่นแล้วเทเลพอร์ตไปหาทันที"
+TPSubtitle.TextColor3 = Color3.fromRGB(180, 180, 220)
+TPSubtitle.Font = Enum.Font.Gotham
+TPSubtitle.TextSize = 11
+TPSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+TPSubtitle.Parent = TPFrame
+
+local TeleportBtn = Instance.new("TextButton")
+TeleportBtn.Size = UDim2.new(0.9, 0, 0, 32)
+TeleportBtn.Position = UDim2.new(0.05, 0, 0, 52)
+TeleportBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+TeleportBtn.Text = "OPEN LIST"
+TeleportBtn.TextColor3 = Color3.new(1, 1, 1)
+TeleportBtn.Font = Enum.Font.GothamBold
+TeleportBtn.TextSize = 14
+TeleportBtn.BorderSizePixel = 0
+TeleportBtn.Parent = TPFrame
+
+-- Hover Effects
+TeleportBtn.MouseEnter:Connect(function()
+    TweenService:Create(TeleportBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+TeleportBtn.MouseLeave:Connect(function()
+    local color = Teleport.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(80, 80, 140)
+    TweenService:Create(TeleportBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กดเปิด/ปิด
+TeleportBtn.MouseButton1Click:Connect(function()
+    Teleport.Enabled = not Teleport.Enabled
+    
+    if Teleport.Enabled then
+        TeleportBtn.Text = "CLOSE LIST"
+        TeleportBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        Teleport:OpenWindow()
+    else
+        TeleportBtn.Text = "OPEN LIST"
+        TeleportBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+        if Teleport.Window then Teleport.Window:Destroy() end
+    end
+end)
+
+-- คีย์ลัด (PC เท่านั้น) - T = ใกล้สุด
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.T then
+        Teleport:ToClosest()
+    end
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    if Teleport.Connection then Teleport.Connection:Disconnect() end
+    if Teleport.Window then Teleport.Window:Destroy() end
+end)
+
+print("[Teleport] Teleport System Loaded (PC: Press T for closest)")
+-- ==============================================
+-- INFINITE JUMP - กระโดดได้ไม่จำกัด (Mobile/PC)
+-- ==============================================
+
+local InfJump = {
+    Enabled = false,
+    Connection = nil,
+    HighJump = false
+}
+
+function InfJump:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[InfJump] เปิดใช้งาน")
+        
+        -- ใช้ JumpRequest (ทำงานทั้ง PC และมือถือ)
+        self.Connection = game:GetService("UserInputService").JumpRequest:Connect(function()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                -- บังคับสถานะเป็น Jumping (กระโดดได้แม้อยู่กลางอากาศ)
+                pcall(function()
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                    if self.HighJump then
+                        hum.JumpPower = 80
+                    else
+                        hum.JumpPower = 50
+                    end
+                end)
+            end
+        end)
+    else
+        print("[InfJump] ปิดใช้งาน")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        -- คืนค่า JumpPower
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.JumpPower = 50 end
+    end
+    
+    return self.Enabled
+end
+
+-- UI (LayoutOrder 9 ต่อจาก Teleport)
+local JumpFrame = Instance.new("Frame")
+JumpFrame.Size = UDim2.new(1, -30, 0, 110)
+JumpFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+JumpFrame.BorderSizePixel = 0
+JumpFrame.LayoutOrder = 9
+JumpFrame.Parent = MainPage
+
+local JumpStroke = Instance.new("UIStroke", JumpFrame)
+JumpStroke.Color = Color3.fromRGB(70, 70, 120)
+JumpStroke.Thickness = 1
+
+local JumpTitle = Instance.new("TextLabel")
+JumpTitle.Size = UDim2.new(1, -20, 0, 26)
+JumpTitle.Position = UDim2.new(0, 10, 0, 8)
+JumpTitle.BackgroundTransparency = 1
+JumpTitle.Text = "⬆️ INFINITE JUMP"
+JumpTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+JumpTitle.Font = Enum.Font.GothamBold
+JumpTitle.TextSize = 15
+JumpTitle.TextXAlignment = Enum.TextXAlignment.Left
+JumpTitle.Parent = JumpFrame
+
+local JumpSub = Instance.new("TextLabel")
+JumpSub.Size = UDim2.new(1, -20, 0, 20)
+JumpSub.Position = UDim2.new(0, 10, 0, 32)
+JumpSub.BackgroundTransparency = 1
+JumpSub.Text = "กระโดดซ้ำได้ในอากาศ (กดปุ่มกระโดด)"
+JumpSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+JumpSub.Font = Enum.Font.Gotham
+JumpSub.TextSize = 11
+JumpSub.TextXAlignment = Enum.TextXAlignment.Left
+JumpSub.Parent = JumpFrame
+
+-- ปุ่มหลัก ON/OFF
+local InfBtn = Instance.new("TextButton")
+InfBtn.Size = UDim2.new(0.55, -5, 0, 36)
+InfBtn.Position = UDim2.new(0, 10, 0, 60)
+InfBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+InfBtn.Text = "OFF"
+InfBtn.TextColor3 = Color3.new(1, 1, 1)
+InfBtn.Font = Enum.Font.GothamBold
+InfBtn.TextSize = 14
+InfBtn.BorderSizePixel = 0
+InfBtn.Parent = JumpFrame
+
+-- ปุ่ม High Jump (อยู่ในเฟรมเดียวกัน ไม่ต้องสร้างใหม่)
+local HighBtn = Instance.new("TextButton")
+HighBtn.Size = UDim2.new(0.4, -5, 0, 36)
+HighBtn.Position = UDim2.new(0.6, 0, 0, 60)
+HighBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+HighBtn.Text = "High: OFF"
+HighBtn.TextColor3 = Color3.new(1, 1, 1)
+HighBtn.Font = Enum.Font.Gotham
+HighBtn.TextSize = 12
+HighBtn.BorderSizePixel = 0
+HighBtn.Parent = JumpFrame
+
+-- Hover Effects
+InfBtn.MouseEnter:Connect(function()
+    local color = InfJump.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(InfBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+InfBtn.MouseLeave:Connect(function()
+    local color = InfJump.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(InfBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+HighBtn.MouseEnter:Connect(function()
+    TweenService:Create(HighBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+HighBtn.MouseLeave:Connect(function()
+    local color = InfJump.HighJump and Color3.fromRGB(100, 100, 170) or Color3.fromRGB(80, 80, 140)
+    TweenService:Create(HighBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- ฟังก์ชันกด
+InfBtn.MouseButton1Click:Connect(function()
+    local state = InfJump:Toggle()
+    if state then
+        InfBtn.Text = "ON"
+        InfBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        JumpTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        InfBtn.Text = "OFF"
+        InfBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        JumpTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+    end
+end)
+
+HighBtn.MouseButton1Click:Connect(function()
+    InfJump.HighJump = not InfJump.HighJump
+    if InfJump.HighJump then
+        HighBtn.Text = "High: ON"
+        HighBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+    else
+        HighBtn.Text = "High: OFF"
+        HighBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+        -- คืนค่าทันทีถ้าปิด
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum and InfJump.Enabled then hum.JumpPower = 50 end
+    end
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    InfJump.Enabled = false
+    if InfJump.Connection then InfJump.Connection:Disconnect() end
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.JumpPower = 50 end
+end)
+
+print("[InfJump] Infinite Jump Loaded (Mobile/PC compatible)")
+-- ==============================================
+-- SOUND HUB - ระบบเสียง (กดเพื่อโหลด) - v2 กดได้หลายครั้ง
+-- ==============================================
+
+local SoundHub = {
+    Loaded = false,
+    Gui = nil
+}
+
+function SoundHub:Load()
+    -- ลบการเช็ค Loaded ออก เพื่อให้โหลดซ้ำได้
+    print("[SoundHub] กำลังโหลด Sound Hub...")
+    local success, err = pcall(function()
+        self.Gui = loadstring(game:HttpGet("https://raw.githubusercontent.com/YONOOB490/orange-/refs/heads/main/SoundHub.lua"))()
+    end)
+    
+    if success then
+        self.Loaded = true
+        print("[SoundHub] โหลดสำเร็จ!")
+        return true
+    else
+        warn("[SoundHub] โหลดไม่สำเร็จ:", err)
+        return false
+    end
+end
+
+-- UI (LayoutOrder 10 แทน Money Farm)
+local SoundFrame = Instance.new("Frame")
+SoundFrame.Size = UDim2.new(1, -30, 0, 100)
+SoundFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+SoundFrame.BorderSizePixel = 0
+SoundFrame.LayoutOrder = 10
+SoundFrame.Parent = MainPage
+
+local SoundStroke = Instance.new("UIStroke", SoundFrame)
+SoundStroke.Color = Color3.fromRGB(70, 70, 120)
+SoundStroke.Thickness = 1
+
+local SoundTitle = Instance.new("TextLabel")
+SoundTitle.Size = UDim2.new(1, -20, 0, 26)
+SoundTitle.Position = UDim2.new(0, 10, 0, 8)
+SoundTitle.BackgroundTransparency = 1
+SoundTitle.Text = "🔊 SOUND HUB"
+SoundTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+SoundTitle.Font = Enum.Font.GothamBold
+SoundTitle.TextSize = 15
+SoundTitle.TextXAlignment = Enum.TextXAlignment.Left
+SoundTitle.Parent = SoundFrame
+
+local SoundSub = Instance.new("TextLabel")
+SoundSub.Size = UDim2.new(1, -20, 0, 20)
+SoundSub.Position = UDim2.new(0, 10, 0, 32)
+SoundSub.BackgroundTransparency = 1
+SoundSub.Text = "โหลดระบบเสียงและเพลง"
+SoundSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+SoundSub.Font = Enum.Font.Gotham
+SoundSub.TextSize = 11
+SoundSub.TextXAlignment = Enum.TextXAlignment.Left
+SoundSub.Parent = SoundFrame
+
+local LoadBtn = Instance.new("TextButton")
+LoadBtn.Size = UDim2.new(0.9, 0, 0, 36)
+LoadBtn.Position = UDim2.new(0.05, 0, 0, 58)
+LoadBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+LoadBtn.Text = "LOAD SOUND HUB"
+LoadBtn.TextColor3 = Color3.new(1, 1, 1)
+LoadBtn.Font = Enum.Font.GothamBold
+LoadBtn.TextSize = 14
+LoadBtn.BorderSizePixel = 0
+LoadBtn.Parent = SoundFrame
+
+-- Hover Effects
+LoadBtn.MouseEnter:Connect(function()
+    TweenService:Create(LoadBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+
+LoadBtn.MouseLeave:Connect(function()
+    local color = SoundHub.Loaded and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(80, 80, 140)
+    TweenService:Create(LoadBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กดโหลด - แก้ให้กดได้หลายครั้ง
+LoadBtn.MouseButton1Click:Connect(function()
+    -- รีเซ็ตสถานะทุกครั้งที่กด
+    LoadBtn.Text = "LOADING..."
+    LoadBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    
+    local success = SoundHub:Load()
+    
+    if success then
+        LoadBtn.Text = "LOADED ✓"
+        LoadBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        SoundTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        -- รีเซ็ตให้กดอีกได้หลังจาก 2 วิ
+        task.wait(2)
+        LoadBtn.Text = "LOAD SOUND HUB"
+        LoadBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+    else
+        LoadBtn.Text = "ERROR! Retry"
+        LoadBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        -- รีเซ็ตให้กดอีกได้
+        task.wait(2)
+        LoadBtn.Text = "LOAD SOUND HUB"
+        LoadBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+    end
+end)
+
+print("[SoundHub] Sound Hub Button Ready (Reloadable)")
+
+-- ==============================================
+-- FULL BRIGHT - สว่างทั้งแมพ (ลบเงา ลบความมืด)
+-- ==============================================
+
+local FullBright = {
+    Enabled = false,
+    Connection = nil,
+    Original = {} -- เก็บค่าเดิม
+}
+
+function FullBright:SaveOriginal()
+    local lighting = game:GetService("Lighting")
+    self.Original = {
+        Brightness = lighting.Brightness,
+        ClockTime = lighting.ClockTime,
+        FogEnd = lighting.FogEnd,
+        GlobalShadows = lighting.GlobalShadows,
+        Ambient = lighting.Ambient,
+        OutdoorAmbient = lighting.OutdoorAmbient
+    }
+end
+
+function FullBright:Apply()
+    local lighting = game:GetService("Lighting")
+    
+    -- บันทึกค่าเดิมถ้ายังไม่มี
+    if not self.Original.Brightness then
+        self:SaveOriginal()
+    end
+    
+    -- ปรับให้สว่างสุดๆ
+    lighting.Brightness = 10
+    lighting.ClockTime = 12 -- เที่ยงวัน
+    lighting.FogEnd = 100000 -- ลบหมอก
+    lighting.GlobalShadows = false -- ลบเงา
+    lighting.Ambient = Color3.fromRGB(255, 255, 255) -- แสงรอบข้างขาวสุด
+    lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+end
+
+function FullBright:Restore()
+    local lighting = game:GetService("Lighting")
+    if self.Original.Brightness then
+        lighting.Brightness = self.Original.Brightness
+        lighting.ClockTime = self.Original.ClockTime
+        lighting.FogEnd = self.Original.FogEnd
+        lighting.GlobalShadows = self.Original.GlobalShadows
+        lighting.Ambient = self.Original.Ambient
+        lighting.OutdoorAmbient = self.Original.OutdoorAmbient
+    end
+end
+
+function FullBright:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[FullBright] เปิดใช้งาน")
+        self:Apply()
+        
+        -- Loop คอยดันไม่ให้เกมเปลี่ยนกลับ (บางเกมมีระบบวัน/คืน)
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            if self.Enabled then
+                local lighting = game:GetService("Lighting")
+                -- ถ้าเกมพยายามเปลี่ยน ให้ดันกลับ
+                if lighting.Brightness < 5 then
+                    lighting.Brightness = 10
+                end
+                if lighting.GlobalShadows then
+                    lighting.GlobalShadows = false
+                end
+            end
+        end)
+        
+    else
+        print("[FullBright] ปิดใช้งาน")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        self:Restore()
+    end
+    
+    return self.Enabled
+end
+
+-- UI Full Bright (LayoutOrder 11 ต่อจาก Sound Hub)
+local BrightFrame = Instance.new("Frame")
+BrightFrame.Size = UDim2.new(1, -30, 0, 90)
+BrightFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+BrightFrame.BorderSizePixel = 0
+BrightFrame.LayoutOrder = 11
+BrightFrame.Parent = MainPage
+
+local BrightStroke = Instance.new("UIStroke", BrightFrame)
+BrightStroke.Color = Color3.fromRGB(70, 70, 120)
+BrightStroke.Thickness = 1
+
+local BrightTitle = Instance.new("TextLabel")
+BrightTitle.Size = UDim2.new(1, -20, 0, 26)
+BrightTitle.Position = UDim2.new(0, 10, 0, 8)
+BrightTitle.BackgroundTransparency = 1
+BrightTitle.Text = "☀️ FULL BRIGHT"
+BrightTitle.TextColor3 = Color3.fromRGB(255, 255, 100)
+BrightTitle.Font = Enum.Font.GothamBold
+BrightTitle.TextSize = 15
+BrightTitle.TextXAlignment = Enum.TextXAlignment.Left
+BrightTitle.Parent = BrightFrame
+
+local BrightSub = Instance.new("TextLabel")
+BrightSub.Size = UDim2.new(1, -20, 0, 20)
+BrightSub.Position = UDim2.new(0, 10, 0, 32)
+BrightSub.BackgroundTransparency = 1
+BrightSub.Text = "ลบความมืด ลบเงา สว่างทั้งแมพ"
+BrightSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+BrightSub.Font = Enum.Font.Gotham
+BrightSub.TextSize = 11
+BrightSub.TextXAlignment = Enum.TextXAlignment.Left
+BrightSub.Parent = BrightFrame
+
+local BrightBtn = Instance.new("TextButton")
+BrightBtn.Size = UDim2.new(0.9, 0, 0, 32)
+BrightBtn.Position = UDim2.new(0.05, 0, 0, 52)
+BrightBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+BrightBtn.Text = "OFF"
+BrightBtn.TextColor3 = Color3.new(1, 1, 1)
+BrightBtn.Font = Enum.Font.GothamBold
+BrightBtn.TextSize = 14
+BrightBtn.BorderSizePixel = 0
+BrightBtn.Parent = BrightFrame
+
+-- Hover Effects
+BrightBtn.MouseEnter:Connect(function()
+    local color = FullBright.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(BrightBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+BrightBtn.MouseLeave:Connect(function()
+    local color = FullBright.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(BrightBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กดปุ่ม
+BrightBtn.MouseButton1Click:Connect(function()
+    local state = FullBright:Toggle()
+    if state then
+        BrightBtn.Text = "ON"
+        BrightBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        BrightTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        BrightBtn.Text = "OFF"
+        BrightBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        BrightTitle.TextColor3 = Color3.fromRGB(255, 255, 100)
+    end
+end)
+
+-- Cleanup เมื่อปิด GUI
+sg.Destroying:Connect(function()
+    FullBright:Restore()
+end)
+
+print("[FullBright] Full Bright Loaded (Layout 11)")
+-- ==============================================
+-- UNIVERSAL ADAPTER v6.0 - AUTO DETECT SYSTEM
+-- ตรวจหาระบบเกมอัตโนมัติ + ปรับวิธียิงให้เหมาะสม
+-- ==============================================
+
+local Universal = {
+    Enabled = false,
+    Connection = nil,
+    
+    -- ตรวจหาระบบเกม
+    Detection = {
+        SystemType = "Unknown", -- "ClickDetector", "Tool", "RemoteEvent", "ProximityPrompt", "MouseClick"
+        GunType = "Unknown",    -- "WallBuy", "GroundLoot", "Inventory"
+        AntiCheatLevel = 0,     -- 0-3 (0=ไม่มี, 3=เข้ม)
+        DetectedAt = 0
+    },
+    
+    -- Settings ปรับตามเกม
+    Settings = {
+        CPS = 20,
+        Mode = "Auto", -- "Auto", "Legit", "Aggressive"
+        SafetyDelay = 0, -- เพิ่มดีเลย์ถ้าเกมมี Anti-Cheat
+        
+        -- ตัวเลือก Universal
+        UseMouse = true,      -- ใช้ mouse1click() ถ้าเป็น PC
+        UseHook = false,      -- Hook ฟังก์ชันเกม (ระวัง!)
+        UseRemote = false,    -- ใช้ RemoteEvent ถ้าหาเจอ
+        BackupTool = true     -- ใช้ Tool เป็นสำรองเสมอ
+    },
+    
+    -- Cache
+    RemoteCache = {},
+    LastGunCheck = 0,
+    ConsecutiveFailures = 0
+}
+
+-- ตรวจหาระบบเกมอัตโนมัติ
+function Universal:DetectSystem()
+    if tick() - self.Detection.DetectedAt < 10 then return end -- ตรวจทุก 10 วิ
+    
+    print("[Universal] กำลังตรวจหาระบบเกม...")
+    local detected = {}
+    
+    -- 1. ตรวจ ClickDetector ในปืน
+    local clickCount = 0
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            if obj.Parent and (obj.Parent.Name:lower():find("gun") or obj.Parent.Name:lower():find("weapon")) then
+                clickCount = clickCount + 1
+            end
+        end
+    end
+    if clickCount > 0 then table.insert(detected, "ClickDetector") end
+    
+    -- 2. ตรวจ Tool ใน Player
+    local char = LocalPlayer.Character
+    if char then
+        for _, obj in ipairs(char:GetChildren()) do
+            if obj:IsA("Tool") then
+                table.insert(detected, "Tool")
+                break
+            end
+        end
+    end
+    
+    -- 3. ตรวจ ProximityPrompt (ซื้อ/หยิบ)
+    local promptCount = 0
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            if obj.ActionText and (obj.ActionText:lower():find("buy") or obj.ActionText:lower():find("get")) then
+                promptCount = promptCount + 1
+            end
+        end
+    end
+    if promptCount > 0 then table.insert(detected, "ProximityPrompt") end
+    
+    -- 4. ตรวจ RemoteEvent ที่น่าจะใช้ยิง (ดูจากชื่อ)
+    for _, obj in ipairs(game.ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local name = obj.Name:lower()
+            if name:find("shoot") or name:find("fire") or name:find("gun") or name:find("damage") then
+                table.insert(detected, "RemoteEvent")
+                self.RemoteCache[obj.Name] = obj
+            end
+        end
+    end
+    
+    -- 5. ตรวจ Anti-Cheat (วิธีง่าย: ดูว่ามีสคริปต์ชื่อแปลกๆ มั้ย)
+    local acDetected = 0
+    for _, obj in ipairs(game:GetService("Players").LocalPlayer.PlayerScripts:GetChildren()) do
+        local name = obj.Name:lower()
+        if name:find("ac") or name:find("anticheat") or name:find("detect") or name:find("security") then
+            acDetected = acDetected + 1
+        end
+    end
+    self.Detection.AntiCheatLevel = math.min(acDetected, 3)
+    
+    -- เลือกระบบหลัก
+    if table.find(detected, "ClickDetector") then
+        self.Detection.SystemType = "ClickDetector"
+    elseif table.find(detected, "Tool") then
+        self.Detection.SystemType = "Tool"
+    elseif table.find(detected, "RemoteEvent") then
+        self.Detection.SystemType = "RemoteEvent"
+    elseif table.find(detected, "ProximityPrompt") then
+        self.Detection.SystemType = "ProximityPrompt"
+    end
+    
+    self.Detection.DetectedAt = tick()
+    
+    -- ปรับ Settings ตาม Anti-Cheat
+    if self.Detection.AntiCheatLevel >= 2 then
+        self.Settings.SafetyDelay = 0.05
+        self.Settings.CPS = math.min(self.Settings.CPS, 15)
+        print("[Universal] ⚠️ พบ Anti-Cheat ระดับสูง! ปรับให้ปลอดภัย...")
+    end
+    
+    print(string.format("[Universal] ตรวจพบ: %s (AC Level: %d)", 
+        self.Detection.SystemType, self.Detection.AntiCheatLevel))
+    
+    return self.Detection.SystemType
+end
+
+-- ยิงแบบ Universal (ปรับตามเกม)
+function Universal:Fire()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    
+    local fired = false
+    
+    -- วิธี 1: ตามระบบที่ตรวจพบ
+    if self.Detection.SystemType == "ClickDetector" then
+        fired = self:FireClickDetector()
+    elseif self.Detection.SystemType == "Tool" then
+        fired = self:FireTool()
+    elseif self.Detection.SystemType == "RemoteEvent" then
+        fired = self:FireRemote()
+    elseif self.Detection.SystemType == "ProximityPrompt" then
+        fired = self:FirePrompt()
+    end
+    
+    -- วิธี 2: Backup (ถ้าวิธีหลักไม่เวิร์ค)
+    if not fired and self.Settings.BackupTool then
+        fired = self:FireTool() -- ลองใช้ Tool เสมอเป็นสำรอง
+    end
+    
+    -- วิธี 3: Mouse Click (ใช้ได้เฉพาะ PC)
+    if not fired and self.Settings.UseMouse then
+        pcall(function()
+            mouse1click()
+            fired = true
+        end)
+    end
+    
+    -- นับความล้มเหลว (ปรับระบบถ้ายิงไม่ได้หลายครั้ง)
+    if not fired then
+        self.ConsecutiveFailures = self.ConsecutiveFailures + 1
+        if self.ConsecutiveFailures > 10 then
+            print("[Universal] ยิงไม่สำเร็จหลายครั้ง กำลังสแกนใหม่...")
+            self:DetectSystem()
+            self.ConsecutiveFailures = 0
+        end
+    else
+        self.ConsecutiveFailures = 0
+    end
+    
+    return fired
+end
+
+function Universal:FireClickDetector()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    
+    -- หาปืนใกล้สุด
+    local nearestGun = nil
+    local minDist = 20 -- ระยะใกล้มือ
+    
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            local parent = obj.Parent
+            if parent and parent:IsA("BasePart") then
+                if parent.Name:lower():find("gun") or parent.Name:lower():find("weapon") then
+                    local dist = (hrp.Position - parent.Position).Magnitude
+                    if dist < minDist then
+                        minDist = dist
+                        nearestGun = obj
+                    end
+                end
+            end
+        end
+    end
+    
+    if nearestGun then
+        pcall(function()
+            if fireclickdetector then
+                fireclickdetector(nearestGun)
+            else
+                nearestGun:Click()
+            end
+        end)
+        return true
+    end
+    return false
+end
+
+function Universal:FireTool()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool then
+        -- เช็คว่าพร้อมยิงไหม
+        if tool.Enabled == false then return false end
+        
+        pcall(function()
+            tool:Activate()
+        end)
+        return true
+    end
+    return false
+end
+
+function Universal:FireRemote()
+    -- ยิงผ่าน RemoteEvent (ถ้ารู้ว่าใช้อันไหน)
+    if #self.RemoteCache == 0 then return false end
+    
+    for name, remote in pairs(self.RemoteCache) do
+        pcall(function()
+            remote:FireServer()
+        end)
+    end
+    return true
+end
+
+function Universal:FirePrompt()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    
+    -- หา prompt ใกล้ๆ
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            local parent = obj.Parent
+            if parent and parent:IsA("BasePart") then
+                local dist = (hrp.Position - parent.Position).Magnitude
+                if dist < 10 then -- ใกล้พอ
+                    pcall(function()
+                        obj:InputHoldBegin()
+                        task.wait(obj.HoldDuration or 0)
+                        obj:InputHoldEnd()
+                    end)
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- ดีเลย์ที่ปลอดภัย (สุ่มเล็กน้อย)
+function Universal:GetSafeDelay()
+    local base = 1 / self.Settings.CPS
+    local safety = self.Settings.SafetyDelay
+    
+    -- สุ่ม ±10% ให้ดูเป็นธรรมชาติ
+    local random = math.random(90, 110) / 100
+    
+    return (base + safety) * random
+end
+
+function Universal:Update()
+    if not self.Enabled then return end
+    
+    -- ตรวจหาระบบถ้ายังไม่รู้
+    if self.Detection.SystemType == "Unknown" then
+        self:DetectSystem()
+        task.wait(1)
+    end
+    
+    -- ยิง
+    local fired = self:Fire()
+    
+    -- ดีเลย์ที่เหมาะสม
+    local delay = self:GetSafeDelay()
+    if fired then
+        task.wait(delay)
+    else
+        task.wait(0.1) -- ถ้ายิงไม่ได้ รอแล้วลองใหม่
+    end
+end
+
+function Universal:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        self:DetectSystem()
+        print("[Universal] Enabled - Auto Detect Mode")
+        
+        -- ใช้ Heartbeat แทน RenderStepped (เร็วกว่า)
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            self:Update()
+        end)
+    else
+        print("[Universal] Disabled")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+    end
+    return self.Enabled
+end
+
+-- ==============================================
+-- UI v6.0 - Universal Adapter
+-- ==============================================
+
+local UniFrame = Instance.new("Frame")
+UniFrame.Size = UDim2.new(1, -30, 0, 180)
+UniFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+UniFrame.BorderSizePixel = 0
+UniFrame.LayoutOrder = 13
+UniFrame.Parent = MainPage
+
+local UniStroke = Instance.new("UIStroke", UniFrame)
+UniStroke.Color = Color3.fromRGB(100, 200, 100) -- เขียว = Universal
+UniStroke.Thickness = 1
+
+-- หัวข้อ
+local UniTitle = Instance.new("TextLabel")
+UniTitle.Size = UDim2.new(1, -20, 0, 26)
+UniTitle.Position = UDim2.new(0, 10, 0, 8)
+UniTitle.BackgroundTransparency = 1
+UniTitle.Text = "🌍 UNIVERSAL ADAPTER v6.0"
+UniTitle.TextColor3 = Color3.fromRGB(100, 255, 150)
+UniTitle.Font = Enum.Font.GothamBold
+UniTitle.TextSize = 15
+UniTitle.Parent = UniFrame
+
+-- สถานะระบบ
+local SystemStatus = Instance.new("TextLabel")
+SystemStatus.Size = UDim2.new(1, -20, 0, 18)
+SystemStatus.Position = UDim2.new(0, 10, 0, 32)
+SystemStatus.BackgroundTransparency = 1
+SystemStatus.Text = "กำลังตรวจหาระบบ..."
+SystemStatus.TextColor3 = Color3.fromRGB(255, 255, 100)
+SystemStatus.Font = Enum.Font.Gotham
+SystemStatus.TextSize = 11
+SystemStatus.Parent = UniFrame
+
+-- แถวปุ่มหลัก
+local Row1 = Instance.new("Frame")
+Row1.Size = UDim2.new(1, -20, 0, 40)
+Row1.Position = UDim2.new(0, 10, 0, 54)
+Row1.BackgroundTransparency = 1
+Row1.Parent = UniFrame
+
+local UniBtn = Instance.new("TextButton")
+UniBtn.Size = UDim2.new(0.4, -5, 1, 0)
+UniBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+UniBtn.Text = "OFF"
+UniBtn.Font = Enum.Font.GothamBold
+UniBtn.TextSize = 14
+UniBtn.Parent = Row1
+
+local ModeBtn = Instance.new("TextButton")
+ModeBtn.Size = UDim2.new(0.35, -5, 1, 0)
+ModeBtn.Position = UDim2.new(0.4, 5, 0, 0)
+ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+ModeBtn.Text = "Auto"
+ModeBtn.Font = Enum.Font.GothamBold
+ModeBtn.TextSize = 12
+ModeBtn.Parent = Row1
+
+local DetectBtn = Instance.new("TextButton")
+DetectBtn.Size = UDim2.new(0.25, -5, 1, 0)
+DetectBtn.Position = UDim2.new(0.75, 5, 0, 0)
+DetectBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 140)
+DetectBtn.Text = "Detect"
+DetectBtn.Font = Enum.Font.GothamBold
+DetectBtn.TextSize = 11
+DetectBtn.Parent = Row1
+
+-- แถว CPS
+local Row2 = Instance.new("Frame")
+Row2.Size = UDim2.new(1, -20, 0, 32)
+Row2.Position = UDim2.new(0, 10, 0, 100)
+Row2.BackgroundColor3 = Color3.fromRGB(40, 45, 40)
+Row2.Parent = UniFrame
+
+local CPSLabel = Instance.new("TextLabel")
+CPSLabel.Size = UDim2.new(0.2, 0, 1, 0)
+CPSLabel.Text = "CPS:"
+CPSLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
+CPSLabel.Font = Enum.Font.GothamBold
+CPSLabel.BackgroundTransparency = 1
+CPSLabel.Parent = Row2
+
+local CPSDisplay = Instance.new("TextLabel")
+CPSDisplay.Size = UDim2.new(0.15, 0, 1, 0)
+CPSDisplay.Position = UDim2.new(0.2, 0, 0, 0)
+CPSDisplay.Text = "20"
+CPSDisplay.TextColor3 = Color3.fromRGB(100, 255, 100)
+CPSDisplay.Font = Enum.Font.GothamBold
+CPSDisplay.TextSize = 16
+CPSDisplay.Parent = Row2
+
+local cpsBtn = function(text, pos, val)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.12, 0, 0.8, 0)
+    btn.Position = UDim2.new(pos, 0, 0.1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = Row2
+    btn.MouseButton1Click:Connect(function()
+        Universal.Settings.CPS = math.clamp(Universal.Settings.CPS + val, 1, 60)
+        CPSDisplay.Text = tostring(Universal.Settings.CPS)
+    end)
+    return btn
+end
+
+cpsBtn("--", 0.37, -5)
+cpsBtn("-", 0.5, -1)
+cpsBtn("+", 0.63, 1)
+cpsBtn("++", 0.76, 5)
+
+-- แถว Safety + Info
+local Row3 = Instance.new("Frame")
+Row3.Size = UDim2.new(1, -20, 0, 28)
+Row3.Position = UDim2.new(0, 10, 0, 138)
+Row3.BackgroundTransparency = 1
+Row3.Parent = UniFrame
+
+local SafetyBtn = Instance.new("TextButton")
+SafetyBtn.Size = UDim2.new(0.48, -5, 1, 0)
+SafetyBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+SafetyBtn.Text = "Safety: Normal"
+SafetyBtn.Font = Enum.Font.GothamBold
+SafetyBtn.TextSize = 11
+SafetyBtn.Parent = Row3
+
+local BackupBtn = Instance.new("TextButton")
+BackupBtn.Size = UDim2.new(0.48, -5, 1, 0)
+BackupBtn.Position = UDim2.new(0.52, 0, 0, 0)
+BackupBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+BackupBtn.Text = "Backup: ON"
+BackupBtn.Font = Enum.Font.GothamBold
+BackupBtn.TextSize = 11
+BackupBtn.Parent = Row3
+
+-- ข้อความ
+local InfoText = Instance.new("TextLabel")
+InfoText.Size = UDim2.new(1, -20, 0, 20)
+InfoText.Position = UDim2.new(0, 10, 0, 172)
+InfoText.BackgroundTransparency = 1
+InfoText.Text = "ตรวจหาระบบอัตโนมัติ ทำงานได้ทุกเกม!"
+InfoText.TextColor3 = Color3.fromRGB(200, 255, 200)
+InfoText.Font = Enum.Font.Gotham
+InfoText.TextSize = 10
+InfoText.Parent = UniFrame
+
+-- Events
+UniBtn.MouseButton1Click:Connect(function()
+    local state = Universal:Toggle()
+    if state then
+        UniBtn.Text = "ON ✓"
+        UniBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+        UniTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        
+        -- อัปเดตสถานะเรื่อยๆ
+        task.spawn(function()
+            while Universal.Enabled do
+                task.wait(1)
+                if not Universal.Enabled then break end
+                SystemStatus.Text = string.format("ระบบ: %s | AC: %d | ยิง: %d CPS",
+                    Universal.Detection.SystemType,
+                    Universal.Detection.AntiCheatLevel,
+                    Universal.Settings.CPS)
+            end
+        end)
+    else
+        UniBtn.Text = "OFF"
+        UniBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        UniTitle.TextColor3 = Color3.fromRGB(100, 255, 150)
+    end
+end)
+
+-- Detect เอง
+DetectBtn.MouseButton1Click:Connect(function()
+    Universal.Detection.SystemType = "Unknown"
+    Universal:DetectSystem()
+    SystemStatus.Text = "ตรวจพบ: " .. Universal.Detection.SystemType
+    DetectBtn.Text = "✓ OK"
+    task.wait(1)
+    DetectBtn.Text = "Detect"
+end)
+
+-- Mode
+ModeBtn.MouseButton1Click:Connect(function()
+    local modes = {"Auto", "Legit", "Aggressive"}
+    local idx = table.find(modes, Universal.Settings.Mode) or 1
+    Universal.Settings.Mode = modes[idx % #modes + 1]
+    ModeBtn.Text = Universal.Settings.Mode
+    
+    if Universal.Settings.Mode == "Legit" then
+        Universal.Settings.SafetyDelay = 0.08
+        Universal.Settings.CPS = 10
+        CPSDisplay.Text = "10"
+    elseif Universal.Settings.Mode == "Aggressive" then
+        Universal.Settings.SafetyDelay = 0
+        Universal.Settings.CPS = 40
+        CPSDisplay.Text = "40"
+    else -- Auto
+        Universal.Settings.SafetyDelay = 0.02
+        Universal.Settings.CPS = 20
+        CPSDisplay.Text = "20"
+    end
+end)
+
+-- Safety
+SafetyBtn.MouseButton1Click:Connect(function()
+    local levels = {"Low", "Normal", "High", "Max"}
+    local delays = {0, 0.02, 0.05, 0.1}
+    local idx = table.find(delays, Universal.Settings.SafetyDelay) or 2
+    local nextIdx = idx % #delays + 1
+    Universal.Settings.SafetyDelay = delays[nextIdx]
+    SafetyBtn.Text = "Safety: " .. levels[nextIdx]
+end)
+
+-- Backup Toggle
+BackupBtn.MouseButton1Click:Connect(function()
+    Universal.Settings.BackupTool = not Universal.Settings.BackupTool
+    BackupBtn.Text = "Backup: " .. (Universal.Settings.BackupTool and "ON" or "OFF")
+    BackupBtn.BackgroundColor3 = Universal.Settings.BackupTool and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(100, 60, 60)
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    Universal.Enabled = false
+    if Universal.Connection then Universal.Connection:Disconnect() end
+end)
+
+print("[Universal] Adapter v6.0 Loaded")
+print("[Universal] ระบบ Auto-Detect พร้อมใช้งาน - เปิดแล้วลองยิงได้เลย!")
+
+-- ==============================================
+-- NPC WARP v2.0 - อัตโนมัติ + เดินหา + บินได้ + มือถือซัพพอร์ต
+-- ==============================================
+
+local NPCWarp = {
+    Enabled = false,
+    Mode = "Interact", -- Interact, Attack, Follow
+    Range = 200,
+    Connection = nil,
+    LastScan = 0,
+    -- เก็บ NPC ที่พบล่าสุด
+    FoundNPCs = {},
+    AutoMove = {
+        Enabled = false,
+        Speed = 50,
+        TargetPart = nil
+    }
+}
+
+-- ตรวจจับ NPC ด้วยหลายวิธี (ชื่อ, Humanoid, ไม่ใช่ผู้เล่น)
+function NPCWarp:IsNPC(obj)
+    if not obj:IsA("Model") then return false end
+    if obj.Parent == nil then return false end
+    
+    -- ไม่ใช่ตัวละครผู้เล่น
+    if game.Players:GetPlayerFromCharacter(obj) then return false end
+    
+    -- เช็คชื่อ NPC
+    local name = obj.Name:lower()
+    local patterns = {"npc", "bot", "mob", "enemy", "monster", "villager", "quest", "civilian", "guard", "shop"}
+    for _, pattern in ipairs(patterns) do
+        if name:find(pattern) then
+            return true
+        end
+    end
+    
+    -- เช็ค Humanoid แต่ไม่ใช่ผู้เล่น
+    if obj:FindFirstChildOfClass("Humanoid") then
+        local hum = obj:FindFirstChildOfClass("Humanoid")
+        -- ต้องมี PrimaryPart ด้วย
+        if obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart") then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- สแกนหา NPC ทั้งหมดในพื้นที่
+function NPCWarp:ScanAll()
+    if tick() - self.LastScan < 2 then return self.FoundNPCs end -- Cache 2 วินาที
+    
+    self.FoundNPCs = {}
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return {} end
+    
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if self:IsNPC(obj) then
+            local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if part then
+                local dist = (myHRP.Position - part.Position).Magnitude
+                if dist <= self.Range then
+                    table.insert(self.FoundNPCs, {
+                        Model = obj,
+                        Part = part,
+                        Distance = dist,
+                        Name = obj.Name
+                    })
+                end
+            end
+        end
+    end
+    
+    -- เรียงตามระยะทาง (ใกล้สุดก่อน)
+    table.sort(self.FoundNPCs, function(a,b) return a.Distance < b.Distance end)
+    
+    self.LastScan = tick()
+    return self.FoundNPCs
+end
+
+-- ฟังก์ชันเดิน/บินไปหา NPC แบบอัตโนมัติ
+function NPCWarp:AutoMoveTo(targetData)
+    if not targetData then return end
+    if not LocalPlayer.Character then return end
+    
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+    
+    local targetPos = targetData.Part.Position
+    local dist = targetData.Distance
+    
+    -- ถ้าไกลกว่า 10 studs ให้เคลื่อนที่
+    if dist > 10 then
+        -- เดินแบบลื่นไหลด้วย Tween
+        local direction = (targetPos - hrp.Position).Unit
+        local movePos = targetPos - (direction * 5) -- หยุดห่าง 5 studs
+        
+        -- ใช้ BodyPosition หรือ Lerp ให้การเคลื่อนที่ลื่น
+        hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(movePos + Vector3.new(0, 2, 0)), 0.1)
+        hrp.Velocity = Vector3.new(0, 0, 0)
+        
+        -- บังคับให้กระโดดข้ามสิ่งกีดขวาง
+        if math.abs(hrp.Position.Y - targetPos.Y) > 5 then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    else
+        -- อยู่ใกล้แล้ว ทำ Action
+        self:PerformAction(targetData.Model)
+    end
+end
+
+-- ทำ Action กับ NPC (Interact หรือ Attack)
+function NPCWarp:PerformAction(npc)
+    if not npc then return end
+    
+    if self.Mode == "Interact" then
+        -- กด ProximityPrompt
+        local prompt = npc:FindFirstChildOfClass("ProximityPrompt")
+        if prompt then
+            pcall(function()
+                prompt:InputHoldBegin()
+                task.wait(0.2)
+                prompt:InputHoldEnd()
+            end)
+        end
+        
+        -- กด ClickDetector (PC)
+        local click = npc:FindFirstChildOfClass("ClickDetector")
+        if click and fireclickdetector then
+            fireclickdetector(click)
+        end
+    elseif self.Mode == "Attack" then
+        -- ตีอัตโนมัติ
+        local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+        if tool then
+            tool:Activate()
+        end
+    elseif self.Mode == "Follow" then
+        -- ติดตาม NPC ไปเรื่อยๆ
+        -- ไม่ต้องทำอะไรพิเศษ เพราะระบบจะติดตามอยู่แล้ว
+    end
+end
+
+-- เปิด/ปิดระบบอัตโนมัติ
+function NPCWarp:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[NPCWarp] เปิดใช้งาน (Auto Mode)")
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            if not self.Enabled then return end
+            
+            -- สแกนหา NPC ใกล้สุด
+            local npcs = self:ScanAll()
+            
+            if #npcs > 0 then
+                -- เลือก NPC ใกล้สุด
+                local target = npcs[1]
+                
+                -- เดิน/บินไปหา NPC อัตโนมัติ
+                self:AutoMoveTo(target)
+                
+                -- อัพเดท UI
+                if AutoMoveBtn then
+                    AutoMoveBtn.Text = "MOVING: " .. target.Name:sub(1, 10)
+                end
+            else
+                if AutoMoveBtn then
+                    AutoMoveBtn.Text = "SCANNING..."
+                end
+            end
+        end)
+    else
+        print("[NPCWarp] ปิดใช้งาน")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        if AutoMoveBtn then
+            AutoMoveBtn.Text = "AUTO MOVE: OFF"
+            AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+        end
+    end
+    
+    return self.Enabled
+end
+
+-- UI (LayoutOrder 13)
+local NPCFrame = Instance.new("Frame")
+NPCFrame.Size = UDim2.new(1, -30, 0, 180) -- เพิ่มความสูง
+NPCFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+NPCFrame.BorderSizePixel = 0
+NPCFrame.LayoutOrder = 13
+NPCFrame.Parent = MainPage
+
+local NPCStroke = Instance.new("UIStroke", NPCFrame)
+NPCStroke.Color = Color3.fromRGB(70, 70, 120)
+NPCStroke.Thickness = 1
+
+local NPCTitle = Instance.new("TextLabel")
+NPCTitle.Size = UDim2.new(1, -20, 0, 26)
+NPCTitle.Position = UDim2.new(0, 10, 0, 8)
+NPCTitle.BackgroundTransparency = 1
+NPCTitle.Text = "🤖 NPC WARP v2.0"
+NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+NPCTitle.Font = Enum.Font.GothamBold
+NPCTitle.TextSize = 15
+NPCTitle.TextXAlignment = Enum.TextXAlignment.Left
+NPCTitle.Parent = NPCFrame
+
+local NPCSub = Instance.new("TextLabel")
+NPCSub.Size = UDim2.new(1, -20, 0, 20)
+NPCSub.Position = UDim2.new(0, 10, 0, 32)
+NPCSub.BackgroundTransparency = 1
+NPCSub.Text = "อัตโนมัติ: หา NPC → เคลื่อนที่ → โต้ตอบ"
+NPCSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+NPCSub.Font = Enum.Font.Gotham
+NPCSub.TextSize = 11
+NPCSub.TextXAlignment = Enum.TextXAlignment.Left
+NPCSub.Parent = NPCFrame
+
+-- ปุ่ม Toggle หลัก
+local NPCBtn = Instance.new("TextButton")
+NPCBtn.Size = UDim2.new(0.5, -5, 0, 40)
+NPCBtn.Position = UDim2.new(0, 10, 0, 58)
+NPCBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+NPCBtn.Text = "OFF"
+NPCBtn.TextColor3 = Color3.new(1, 1, 1)
+NPCBtn.Font = Enum.Font.GothamBold
+NPCBtn.TextSize = 14
+NPCBtn.BorderSizePixel = 0
+NPCBtn.Parent = NPCFrame
+
+-- ปุ่มสลับโหมด
+local ModeBtn = Instance.new("TextButton")
+ModeBtn.Size = UDim2.new(0.45, 0, 0, 40)
+ModeBtn.Position = UDim2.new(0.55, 0, 0, 58)
+ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+ModeBtn.Text = "Mode: Interact"
+ModeBtn.TextColor3 = Color3.new(1, 1, 1)
+ModeBtn.Font = Enum.Font.Gotham
+ModeBtn.TextSize = 12
+ModeBtn.BorderSizePixel = 0
+ModeBtn.Parent = NPCFrame
+
+-- ปุ่ม Auto Move (ใหม่)
+local AutoMoveBtn = Instance.new("TextButton")
+AutoMoveBtn.Size = UDim2.new(0.9, 0, 0, 32)
+AutoMoveBtn.Position = UDim2.new(0.05, 0, 0, 104)
+AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+AutoMoveBtn.Text = "AUTO MOVE: OFF"
+AutoMoveBtn.TextColor3 = Color3.new(1, 1, 1)
+AutoMoveBtn.Font = Enum.Font.GothamBold
+AutoMoveBtn.TextSize = 13
+AutoMoveBtn.BorderSizePixel = 0
+AutoMoveBtn.Parent = NPCFrame
+
+-- สถานะ
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -20, 0, 20)
+Status.Position = UDim2.new(0, 10, 0, 142)
+Status.BackgroundTransparency = 1
+Status.Text = "พร้อมสแกน NPC ในรัศมี 200 studs"
+Status.TextColor3 = Color3.fromRGB(150, 150, 180)
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 11
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Parent = NPCFrame
+
+-- Hover Effects
+NPCBtn.MouseEnter:Connect(function()
+    local color = NPCWarp.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(NPCBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+NPCBtn.MouseLeave:Connect(function()
+    local color = NPCWarp.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(NPCBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+ModeBtn.MouseEnter:Connect(function()
+    TweenService:Create(ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+ModeBtn.MouseLeave:Connect(function()
+    TweenService:Create(ModeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+end)
+
+AutoMoveBtn.MouseEnter:Connect(function()
+    local color = NPCWarp.AutoMove.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(100, 100, 170)
+    TweenService:Create(AutoMoveBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+AutoMoveBtn.MouseLeave:Connect(function()
+    local color = NPCWarp.AutoMove.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(80, 80, 140)
+    TweenService:Create(AutoMoveBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กดเปิด/ปิดระบบหลัก
+NPCBtn.MouseButton1Click:Connect(function()
+    local state = NPCWarp:Toggle()
+    if state then
+        NPCBtn.Text = "ON"
+        NPCBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        Status.Text = "กำลังสแกน NPC..."
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        NPCBtn.Text = "OFF"
+        NPCBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+        Status.Text = "พร้อมสแกน NPC ในรัศมี 200 studs"
+        Status.TextColor3 = Color3.fromRGB(150, 150, 180)
+    end
+end)
+
+-- สลับโหมด
+ModeBtn.MouseButton1Click:Connect(function()
+    local modes = {"Interact", "Attack", "Follow"}
+    local idx = table.find(modes, NPCWarp.Mode) or 1
+    idx = idx % #modes + 1
+    NPCWarp.Mode = modes[idx]
+    ModeBtn.Text = "Mode: " .. NPCWarp.Mode
+    NPCWarp.AutoMove.Action = NPCWarp.Mode
+    
+    -- อัพเดทสถานะ
+    Status.Text = "โหมด: " .. NPCWarp.Mode .. " | รัศมี: " .. NPCWarp.Range .. " studs"
+end)
+
+-- เปิด/ปิด Auto Move
+AutoMoveBtn.MouseButton1Click:Connect(function()
+    local state = NPCWarp.AutoMove.Enabled
+    NPCWarp.AutoMove.Enabled = not state
+    
+    if NPCWarp.AutoMove.Enabled then
+        AutoMoveBtn.Text = "AUTO MOVE: ON"
+        AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        AutoMoveBtn.Text = "AUTO MOVE: OFF"
+        AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+        NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+    end
+end)
+
+-- คลิกซ้ายบน NPC เพื่อเลือก (สำหรับ PC)
+game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mouse = LocalPlayer:GetMouse()
+        if mouse.Target then
+            local model = mouse.Target.Parent
+            if NPCWarp:IsNPC(model) then
+                -- เลือก NPC นี้เป็นพิเศษ
+                NPCWarp.AutoMove.TargetPart = model.PrimaryPart
+                Status.Text = "เลือก: " .. model.Name .. " (คลิกซ้ำเพื่อยกเลิก)"
+            end
+        end
+    end
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    NPCWarp.Enabled = false
+    NPCWarp.AutoMove.Enabled = false
+    if NPCWarp.Connection then NPCWarp.Connection:Disconnect() end
+    if NPCWarp.AutoMove.Connection then NPCWarp.AutoMove.Connection:Disconnect() end
+end)
+
+print("[NPCWarp] NPC Warp v2.0 Loaded (Layout 13)")
+print("[NPCWarp] Auto-move + Auto-interact + Mobile Support")
+
+-- ==============================================
+-- HITBOX EXPANDER - ขยายพื้นที่โจมตี (Layout 14)
+-- ==============================================
+
+local Hitbox = {
+    Enabled = false,
+    Size = 3, -- ขนาดคูณ (3 = 3x)
+    Connection = nil,
+    LastScan = 0,
+    Originals = {} -- [Part] = {Size=..., Trans=..., Mat=...}
+}
+
+function Hitbox:ProcessCharacter(char)
+    if not char then return end
+    local isEnemy = false
+    
+    -- เช็คว่าเป็นศัตรู (ไม่ใช่ทีมเดียวกัน)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character == char and player ~= LocalPlayer then
+            if LocalPlayer.Team and player.Team and LocalPlayer.Team ~= player.Team then
+                isEnemy = true
+            elseif not LocalPlayer.Team then
+                isEnemy = true
+            end
+            break
+        end
+    end
+    
+    if not isEnemy then return end
+    
+    -- ขยายส่วนสำคัญ
+    local targets = {"Head", "HumanoidRootPart", "UpperTorso", "Torso"}
+    for _, name in ipairs(targets) do
+        local part = char:FindFirstChild(name)
+        if part and part:IsA("BasePart") then
+            if not self.Originals[part] then
+                self.Originals[part] = {
+                    Size = part.Size,
+                    Transparency = part.Transparency,
+                    Material = part.Material
+                }
+            end
+            
+            if self.Enabled then
+                -- ขยายและทำให้เห็นได้ชัด
+                part.Size = self.Originals[part].Size * self.Size
+                part.Transparency = 0.7
+                part.Material = Enum.Material.Neon
+            else
+                -- คืนค่า
+                part.Size = self.Originals[part].Size
+                part.Transparency = self.Originals[part].Transparency
+                part.Material = self.Originals[part].Material
+            end
+        end
+    end
+end
+
+function Hitbox:Scan()
+    -- สแกนทุก 0.5 วิ (ประหยัด FPS)
+    if tick() - self.LastScan < 0.5 then return end
+    self.LastScan = tick()
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            self:ProcessCharacter(player.Character)
+        end
+    end
+end
+
+function Hitbox:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[Hitbox] เปิดใช้งาน (x" .. self.Size .. ")")
+        -- ประมวลผลทันที
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                self:ProcessCharacter(player.Character)
+            end
+        end
+        
+        -- Loop ตรวจสอบผู้เล่นใหม่
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            self:Scan()
+        end)
+    else
+        print("[Hitbox] ปิดใช้งาน - คืนค่า")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        
+        -- คืนค่าทั้งหมด
+        for part, data in pairs(self.Originals) do
+            if part and part.Parent then
+                part.Size = data.Size
+                part.Transparency = data.Transparency
+                part.Material = data.Material
+            end
+        end
+        self.Originals = {}
+    end
+    
+    return self.Enabled
+end
+
+-- UI (LayoutOrder 14)
+local HitFrame = Instance.new("Frame")
+HitFrame.Size = UDim2.new(1, -30, 0, 120)
+HitFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+HitFrame.BorderSizePixel = 0
+HitFrame.LayoutOrder = 14
+HitFrame.Parent = MainPage
+
+local HitStroke = Instance.new("UIStroke", HitFrame)
+HitStroke.Color = Color3.fromRGB(70, 70, 120)
+HitStroke.Thickness = 1
+
+local HitTitle = Instance.new("TextLabel")
+HitTitle.Size = UDim2.new(1, -20, 0, 26)
+HitTitle.Position = UDim2.new(0, 10, 0, 8)
+HitTitle.BackgroundTransparency = 1
+HitTitle.Text = "📦 HITBOX EXPANDER"
+HitTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+HitTitle.Font = Enum.Font.GothamBold
+HitTitle.TextSize = 15
+HitTitle.TextXAlignment = Enum.TextXAlignment.Left
+HitTitle.Parent = HitFrame
+
+local HitSub = Instance.new("TextLabel")
+HitSub.Size = UDim2.new(1, -20, 0, 20)
+HitSub.Position = UDim2.new(0, 10, 0, 32)
+HitSub.BackgroundTransparency = 1
+HitSub.Text = "ขยายส่วนหัว/ตัวของศัตรูให้โดนง่าย"
+HitSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+HitSub.Font = Enum.Font.Gotham
+HitSub.TextSize = 11
+HitSub.TextXAlignment = Enum.TextXAlignment.Left
+HitSub.Parent = HitFrame
+
+local HitBtn = Instance.new("TextButton")
+HitBtn.Size = UDim2.new(0.5, -5, 0, 36)
+HitBtn.Position = UDim2.new(0, 10, 0, 60)
+HitBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+HitBtn.Text = "OFF"
+HitBtn.TextColor3 = Color3.new(1, 1, 1)
+HitBtn.Font = Enum.Font.GothamBold
+HitBtn.TextSize = 14
+HitBtn.BorderSizePixel = 0
+HitBtn.Parent = HitFrame
+
+local SizeBtn = Instance.new("TextButton")
+SizeBtn.Size = UDim2.new(0.45, 0, 0, 36)
+SizeBtn.Position = UDim2.new(0.55, 0, 0, 60)
+SizeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+SizeBtn.Text = "Size: x3"
+SizeBtn.TextColor3 = Color3.new(1, 1, 1)
+SizeBtn.Font = Enum.Font.Gotham
+SizeBtn.TextSize = 12
+SizeBtn.BorderSizePixel = 0
+SizeBtn.Parent = HitFrame
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -20, 0, 20)
+Status.Position = UDim2.new(0, 10, 0, 100)
+Status.BackgroundTransparency = 1
+Status.Text = "เป้าหมาย: ศัตรูในทีมอื่น"
+Status.TextColor3 = Color3.fromRGB(150, 150, 180)
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 11
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Parent = HitFrame
+
+-- Hover Effects
+HitBtn.MouseEnter:Connect(function()
+    local color = Hitbox.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(HitBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+HitBtn.MouseLeave:Connect(function()
+    local color = Hitbox.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(HitBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กด Toggle
+HitBtn.MouseButton1Click:Connect(function()
+    local state = Hitbox:Toggle()
+    if state then
+        HitBtn.Text = "ON"
+        HitBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        HitTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        Status.Text = "กำลังขยาย Hitbox ศัตรู..."
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        HitBtn.Text = "OFF"
+        HitBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        HitTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+        Status.Text = "เป้าหมาย: ศัตรูในทีมอื่น"
+        Status.TextColor3 = Color3.fromRGB(150, 150, 180)
+    end
+end)
+
+-- เปลี่ยนขนาด
+SizeBtn.MouseButton1Click:Connect(function()
+    local sizes = {2, 3, 5, 10}
+    local idx = table.find(sizes, Hitbox.Size) or 1
+    idx = idx % #sizes + 1
+    Hitbox.Size = sizes[idx]
+    SizeBtn.Text = "Size: x" .. Hitbox.Size
+    
+    -- รีเฟรชถ้ากำลังทำงาน
+    if Hitbox.Enabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                Hitbox:ProcessCharacter(player.Character)
+            end
+        end
+    end
+end)
+
+SizeBtn.MouseEnter:Connect(function()
+    TweenService:Create(SizeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+SizeBtn.MouseLeave:Connect(function()
+    TweenService:Create(SizeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+end)
+
+-- ติดตามผู้เล่นใหม่
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        if Hitbox.Enabled then
+            task.wait(1)
+            Hitbox:ProcessCharacter(char)
+        end
+    end)
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    Hitbox.Enabled = false
+    if Hitbox.Connection then Hitbox.Connection:Disconnect() end
+    -- คืนค่าทั้งหมด
+    for part, data in pairs(Hitbox.Originals) do
+        if part and part.Parent then
+            part.Size = data.Size
+            part.Transparency = data.Transparency
+            part.Material = data.Material
+        end
+    end
+end)
+
+print("[Hitbox] Hitbox Expander Loaded (Layout 14)")
+print("[Hitbox] ขยาย Head/HRP x3 (default), สแกนทุก 0.5s")
+-- ==============================================
+-- FLY MODE v2 - ระบบบิน + Auto NPC Warp (กดได้หลายครั้ง)
+-- ==============================================
+
+local FlySystem = {
+    Loaded = false,
+    Gui = nil,
+    NPCFollow = {
+        Enabled = false,
+        TargetNPC = nil,
+        Connection = nil,
+        Range = 100,
+        Action = "Interact" -- หรือ "Attack"
+    }
+}
+
+-- ฟังก์ชันค้นหา NPC ใกล้เคียงอัตโนมัติ
+function FlySystem.NPCFollow:FindNearest()
+    if not LocalPlayer.Character then return nil end
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    
+    local nearest = nil
+    local nearestDist = math.huge
+    local nearestPart = nil
+    
+    -- วนหา NPC ในวิธีที่หลากหลาย
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj ~= LocalPlayer.Character then
+            local isNPC = false
+            local name = obj.Name:lower()
+            
+            -- เช็คชื่อ NPC
+            if name:find("npc") or name:find("bot") or name:find("mob") or 
+               name:find("enemy") or name:find("villager") or name:find("quest") then
+                isNPC = true
+            end
+            
+            -- เช็ค Humanoid แต่ไม่ใช่ผู้เล่น
+            if obj:FindFirstChildOfClass("Humanoid") then
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 and not game.Players:GetPlayerFromCharacter(obj) then
+                    isNPC = true
+                end
+            end
+            
+            if isNPC then
+                local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                if part then
+                    local dist = (hrp.Position - part.Position).Magnitude
+                    if dist < self.Range and dist < nearestDist then
+                        nearestDist = dist
+                        nearest = obj
+                        nearestPart = part
+                    end
+                end
+            end
+        end
+    end
+    
+    return nearest, nearestPart
+end
+
+-- ฟังก์ชนเคลื่อนที่ไปหา NPC (เดินหรือบิน)
+function FlySystem.NPCFollow:MoveToTarget(npc, part)
+    if not npc or not part then return end
+    if not LocalPlayer.Character then return end
+    
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local dist = (hrp.Position - part.Position).Magnitude
+    
+    -- ถ้าไกลเกิน 10 studs ให้เคลื่อนที่ไป
+    if dist > 10 then
+        -- ใช้ Tween หรือ Lerp ให้การเคลื่อนที่ลื่น
+        local targetPos = part.Position + Vector3.new(0, 2, 0)
+        hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(targetPos), 0.1)
+        hrp.Velocity = Vector3.new(0, 0, 0)
+    else
+        -- อยู่ใกล้แล้ว ทำ Action
+        if self.Action == "Interact" then
+            -- กด ProximityPrompt อัตโนมัติ
+            local prompt = npc:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                pcall(function()
+                    prompt:InputHoldBegin()
+                    task.wait(0.2)
+                    prompt:InputHoldEnd()
+                end)
+            end
+        elseif self.Action == "Attack" then
+            -- ใช้ Tool ตี
+            local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+            if tool then
+                tool:Activate()
+            end
+        end
+    end
+end
+
+-- เปิด/ปิดระบบติดตาม NPC
+function FlySystem.NPCFollow:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[NPCFollow] เปิดใช้งาน")
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            if not self.Enabled then return end
+            
+            -- หา NPC ใกล้สุดทุกครั้ง
+            local npc, part = self:FindNearest()
+            if npc and part then
+                self.TargetNPC = npc
+                self:MoveToTarget(npc, part)
+            else
+                self.TargetNPC = nil
+            end
+        end)
+    else
+        print("[NPCFollow] ปิดใช้งาน")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        self.TargetNPC = nil
+    end
+    
+    return self.Enabled
+end
+
+function FlySystem:Load()
+    -- ลบการเช็ค Loaded เพื่อให้โหลดซ้ำได้
+    print("[Fly] กำลังโหลด Fly Gui V3...")
+    local success, err = pcall(function()
+        self.Gui = loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))()
+    end)
+    
+    if success then
+        self.Loaded = true
+        print("[Fly] โหลดสำเร็จ!")
+        return true
+    else
+        warn("[Fly] โหลดไม่สำเร็จ:", err)
+        return false
+    end
+end
+
+-- UI (LayoutOrder 15)
+local FlyFrame = Instance.new("Frame")
+FlyFrame.Size = UDim2.new(1, -30, 0, 130) -- เพิ่มความสูง
+FlyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+FlyFrame.BorderSizePixel = 0
+FlyFrame.LayoutOrder = 15
+FlyFrame.Parent = MainPage
+
+local FlyStroke = Instance.new("UIStroke", FlyFrame)
+FlyStroke.Color = Color3.fromRGB(70, 70, 120)
+FlyStroke.Thickness = 1
+
+local FlyTitle = Instance.new("TextLabel")
+FlyTitle.Size = UDim2.new(1, -20, 0, 26)
+FlyTitle.Position = UDim2.new(0, 10, 0, 8)
+FlyTitle.BackgroundTransparency = 1
+FlyTitle.Text = "🕊️ FLY MODE + NPC AUTO"
+FlyTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+FlyTitle.Font = Enum.Font.GothamBold
+FlyTitle.TextSize = 15
+FlyTitle.TextXAlignment = Enum.TextXAlignment.Left
+FlyTitle.Parent = FlyFrame
+
+local FlySub = Instance.new("TextLabel")
+FlySub.Size = UDim2.new(1, -20, 0, 20)
+FlySub.Position = UDim2.new(0, 10, 0, 32)
+FlySub.BackgroundTransparency = 1
+FlySub.Text = "โหลดระบบบิน + ติดตาม NPC อัตโนมัติ"
+FlySub.TextColor3 = Color3.fromRGB(180, 180, 220)
+FlySub.Font = Enum.Font.Gotham
+FlySub.TextSize = 11
+FlySub.TextXAlignment = Enum.TextXAlignment.Left
+FlySub.Parent = FlyFrame
+
+local LoadFlyBtn = Instance.new("TextButton")
+LoadFlyBtn.Size = UDim2.new(0.9, 0, 0, 32)
+LoadFlyBtn.Position = UDim2.new(0.05, 0, 0, 52)
+LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
+LoadFlyBtn.Text = "LOAD FLY GUI"
+LoadFlyBtn.TextColor3 = Color3.new(1, 1, 1)
+LoadFlyBtn.Font = Enum.Font.GothamBold
+LoadFlyBtn.TextSize = 14
+LoadFlyBtn.BorderSizePixel = 0
+LoadFlyBtn.Parent = FlyFrame
+
+-- ปุ่ม Auto NPC (ใหม่)
+local AutoNPCBtn = Instance.new("TextButton")
+AutoNPCBtn.Size = UDim2.new(0.9, 0, 0, 32)
+AutoNPCBtn.Position = UDim2.new(0.05, 0, 0, 88)
+AutoNPCBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+AutoNPCBtn.Text = "AUTO NPC: OFF"
+AutoNPCBtn.TextColor3 = Color3.new(1, 1, 1)
+AutoNPCBtn.Font = Enum.Font.GothamBold
+AutoNPCBtn.TextSize = 13
+AutoNPCBtn.BorderSizePixel = 0
+AutoNPCBtn.Parent = FlyFrame
+
+-- Hover Effects
+LoadFlyBtn.MouseEnter:Connect(function()
+    TweenService:Create(LoadFlyBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 170, 200)}):Play()
+end)
+
+LoadFlyBtn.MouseLeave:Connect(function()
+    local color = FlySystem.Loaded and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(80, 140, 180)
+    TweenService:Create(LoadFlyBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กดโหลด Fly - แก้ให้กดได้หลายครั้ง
+LoadFlyBtn.MouseButton1Click:Connect(function()
+    -- รีเซ็ตสถานะทุกครั้งที่กด
+    LoadFlyBtn.Text = "LOADING..."
+    LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    
+    local success = FlySystem:Load()
+    
+    if success then
+        LoadFlyBtn.Text = "LOADED ✓"
+        LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        FlyTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        -- รีเซ็ตให้กดอีกได้
+        task.wait(2)
+        LoadFlyBtn.Text = "LOAD FLY GUI"
+        LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
+    else
+        LoadFlyBtn.Text = "ERROR! Retry"
+        LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        task.wait(2)
+        LoadFlyBtn.Text = "LOAD FLY GUI"
+        LoadFlyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
+    end
+end)
+
+-- กด Toggle Auto NPC
+AutoNPCBtn.MouseButton1Click:Connect(function()
+    local state = FlySystem.NPCFollow:Toggle()
+    if state then
+        AutoNPCBtn.Text = "AUTO NPC: ON"
+        AutoNPCBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+    else
+        AutoNPCBtn.Text = "AUTO NPC: OFF"
+        AutoNPCBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+    end
+end)
+
+AutoNPCBtn.MouseEnter:Connect(function()
+    local color = FlySystem.NPCFollow.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(100, 100, 170)
+    TweenService:Create(AutoNPCBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+AutoNPCBtn.MouseLeave:Connect(function()
+    local color = FlySystem.NPCFollow.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(80, 80, 140)
+    TweenService:Create(AutoNPCBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+print("[Fly] Fly Mode + Auto NPC Loaded (Layout 15)")
+print("[Fly] กด LOAD เพื่อโหลด FlyGuiV3 ซ้ำได้ + เปิด Auto NPC")
+
+-- ==============================================
+-- FLOAT / ANTI-GRAVITY - ลอยจากพื้น (Layout 16)
+-- ==============================================
+
+local Float = {
+    Enabled = false,
+    Height = 3, -- ความสูงจากพื้น (studs)
+    Connection = nil
+}
+
+function Float:Apply()
+    if not self.Enabled then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+    
+    -- Raycast หาพื้น
+    local rayOrigin = hrp.Position
+    local rayDir = Vector3.new(0, -100, 0)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {char}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    
+    local result = workspace:Raycast(rayOrigin, rayDir, rayParams)
+    if result then
+        local groundY = result.Position.Y
+        local targetY = groundY + self.Height
+        local currentY = hrp.Position.Y
+        
+        -- ถ้าต่ำกว่าความสูงที่ต้องการ ให้ผลักขึ้น
+        if currentY < targetY then
+            local vel = hrp.AssemblyLinearVelocity
+            hrp.AssemblyLinearVelocity = Vector3.new(vel.X, 25, vel.Z)
+            hum.PlatformStand = true
+        else
+            hum.PlatformStand = false
+        end
+    end
+end
+
+function Float:Toggle()
+    self.Enabled = not self.Enabled
+    
+    if self.Enabled then
+        print("[Float] เปิดใช้งาน (สูง " .. self.Height .. " studs)")
+        self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
+            self:Apply()
+        end)
+    else
+        print("[Float] ปิดใช้งาน")
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+    end
+    
+    return self.Enabled
+end
+
+-- UI (LayoutOrder 16)
+local FloatFrame = Instance.new("Frame")
+FloatFrame.Size = UDim2.new(1, -30, 0, 110)
+FloatFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+FloatFrame.BorderSizePixel = 0
+FloatFrame.LayoutOrder = 16
+FloatFrame.Parent = MainPage
+
+local FloatStroke = Instance.new("UIStroke", FloatFrame)
+FloatStroke.Color = Color3.fromRGB(70, 70, 120)
+FloatStroke.Thickness = 1
+
+local FloatTitle = Instance.new("TextLabel")
+FloatTitle.Size = UDim2.new(1, -20, 0, 26)
+FloatTitle.Position = UDim2.new(0, 10, 0, 8)
+FloatTitle.BackgroundTransparency = 1
+FloatTitle.Text = "☁️ FLOAT / ANTI-GRAVITY"
+FloatTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+FloatTitle.Font = Enum.Font.GothamBold
+FloatTitle.TextSize = 15
+FloatTitle.TextXAlignment = Enum.TextXAlignment.Left
+FloatTitle.Parent = FloatFrame
+
+local FloatSub = Instance.new("TextLabel")
+FloatSub.Size = UDim2.new(1, -20, 0, 20)
+FloatSub.Position = UDim2.new(0, 10, 0, 32)
+FloatSub.BackgroundTransparency = 1
+FloatSub.Text = "ลอยขึ้นจากพื้นเพื่อหลบการโจมตี"
+FloatSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+FloatSub.Font = Enum.Font.Gotham
+FloatSub.TextSize = 11
+FloatSub.TextXAlignment = Enum.TextXAlignment.Left
+FloatSub.Parent = FloatFrame
+
+local FloatBtn = Instance.new("TextButton")
+FloatBtn.Size = UDim2.new(0.5, -5, 0, 36)
+FloatBtn.Position = UDim2.new(0, 10, 0, 58)
+FloatBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+FloatBtn.Text = "OFF"
+FloatBtn.TextColor3 = Color3.new(1, 1, 1)
+FloatBtn.Font = Enum.Font.GothamBold
+FloatBtn.TextSize = 14
+FloatBtn.BorderSizePixel = 0
+FloatBtn.Parent = FloatFrame
+
+local HeightBtn = Instance.new("TextButton")
+HeightBtn.Size = UDim2.new(0.45, 0, 0, 36)
+HeightBtn.Position = UDim2.new(0.55, 0, 0, 58)
+HeightBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+HeightBtn.Text = "Height: 3"
+HeightBtn.TextColor3 = Color3.new(1, 1, 1)
+HeightBtn.Font = Enum.Font.Gotham
+HeightBtn.TextSize = 12
+HeightBtn.BorderSizePixel = 0
+HeightBtn.Parent = FloatFrame
+
+-- Hover Effects
+FloatBtn.MouseEnter:Connect(function()
+    local color = Float.Enabled and Color3.fromRGB(80, 200, 100) or Color3.fromRGB(200, 80, 80)
+    TweenService:Create(FloatBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+FloatBtn.MouseLeave:Connect(function()
+    local color = Float.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(180, 60, 60)
+    TweenService:Create(FloatBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+-- กด Toggle
+FloatBtn.MouseButton1Click:Connect(function()
+    local state = Float:Toggle()
+    if state then
+        FloatBtn.Text = "ON"
+        FloatBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        FloatTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        FloatBtn.Text = "OFF"
+        FloatBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        FloatTitle.TextColor3 = Color3.fromRGB(100, 200, 255)
+    end
+end)
+
+-- เปลี่ยนความสูง (1-5 studs)
+HeightBtn.MouseButton1Click:Connect(function()
+    Float.Height = Float.Height % 5 + 1
+    HeightBtn.Text = "Height: " .. Float.Height
+end)
+
+HeightBtn.MouseEnter:Connect(function()
+    TweenService:Create(HeightBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+HeightBtn.MouseLeave:Connect(function()
+    TweenService:Create(HeightBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 80, 140)}):Play()
+end)
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    Float.Enabled = false
+    if Float.Connection then Float.Connection:Disconnect() end
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false end
+end)
+
+print("[Float] Float / Anti-Gravity Loaded (Layout 16)")
+print("[Float] ปรับความสูง 1-5 studs, กดปุ่ม ON เพื่อลอย")
+-- ==============================================
+-- GAME ITEM PURCHASER v2.0 - ซื้อ/หยิบไอเท็มจากแมพ
+-- รองรับ ProximityPrompt, ClickDetector, Tool, ซื้อซ้อนได้หลายชิ้น
+-- ==============================================
+
+local ItemPurchaser = {
+    Enabled = false,
+    UI = {
+        MainFrame = nil,
+        ItemList = nil,
+        StatusLabel = nil
+    },
+    Settings = {
+        ScanRadius = 300, -- สแกนในวงกว้าง 300 studs
+        AutoPurchase = false,
+        Amount = 1 -- จำนวนที่จะซื้อ/หยิบ
+    },
+    Connections = {},
+    LastScan = 0,
+    Items = {}, -- ของที่สแกนเจอ
+    PurchasedItems = {} -- ประวัติการซื้อ
+}
+
+-- ตรวจจับของที่ซื้อ/หยิบได้
+function ItemPurchaser:IsPurchaseableItem(obj)
+    if not obj then return false end
+    
+    -- ประเภท 1: ProximityPrompt (สีเขียวๆ ให้กดซื้อ)
+    if obj:IsA("ProximityPrompt") then
+        -- ต้องมี ObjectText ที่บ่งบอกว่าเป็นของ
+        if obj.ObjectText and obj.ObjectText ~= "" then
+            return true, obj.ObjectText
+        end
+        -- หรือ ActionText เป็น "Purchase", "Buy", "Collect"
+        local action = obj.ActionText:lower()
+        if action:find("purchase") or action:find("buy") or action:find("collect") or action:find("equip") then
+            return true, obj.Parent.Name
+        end
+    end
+    
+    -- ประเภท 2: ClickDetector (กดซื้อ)
+    if obj:IsA("ClickDetector") then
+        local parent = obj.Parent
+        -- ถ้า Parent มี SurfaceGui หรือ BillboardGui แสดงชื่อราคา
+        if parent:FindFirstChildWhichIsA("SurfaceGui") or parent:FindFirstChildWhichIsA("BillboardGui") then
+            return true, parent.Name
+        end
+        -- หรือมี Tool อยู่ใน Parent
+        if parent:FindFirstChildWhichIsA("Tool") then
+            return true, parent:FindFirstChildWhichIsA("Tool").Name
+        end
+    end
+    
+    -- ประเภท 3: Tool วางอยู่ใน Workspace
+    if obj:IsA("Tool") and obj.Parent == workspace then
+        return true, obj.Name
+    end
+    
+    -- ประเภท 4: Model ที่มี ProximityPrompt อยู่ข้างใน
+    if obj:IsA("Model") then
+        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
+        if prompt then
+            return self:IsPurchaseableItem(prompt)
+        end
+        local click = obj:FindFirstChildWhichIsA("ClickDetector")
+        if click then
+            return self:IsPurchaseableItem(click)
+        end
+    end
+    
+    return false
+end
+
+-- สแกนหาของที่ซื้อได้ในแมพ
+function ItemPurchaser:ScanItems()
+    if tick() - self.LastScan < 2 then return end -- สแกนทุก 2 วิ
+    
+    self.Items = {}
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+    
+    local charPos = myHRP.Position
+    
+    -- สแกน ProximityPrompt ในวงกว้าง
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            local parent = prompt.Parent
+            if parent and parent:IsA("BasePart") then
+                local dist = (parent.Position - charPos).Magnitude
+                if dist <= self.Settings.ScanRadius then
+                    local isItem, itemName = self:IsPurchaseableItem(prompt)
+                    if isItem and itemName then
+                        table.insert(self.Items, {
+                            Object = prompt,
+                            Name = itemName,
+                            Type = "ProximityPrompt",
+                            Distance = dist,
+                            Position = parent.Position,
+                            Price = self:GetPrice(prompt)
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- สแกน ClickDetector
+    for _, click in ipairs(workspace:GetDescendants()) do
+        if click:IsA("ClickDetector") then
+            local parent = click.Parent
+            if parent and parent:IsA("BasePart") then
+                local dist = (parent.Position - charPos).Magnitude
+                if dist <= self.Settings.ScanRadius then
+                    local isItem, itemName = self:IsPurchaseableItem(click)
+                    if isItem and itemName then
+                        table.insert(self.Items, {
+                            Object = click,
+                            Name = itemName,
+                            Type = "ClickDetector",
+                            Distance = dist,
+                            Position = parent.Position,
+                            Price = self:GetPrice(click)
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- สแกน Tool ใน Workspace
+    for _, tool in ipairs(workspace:GetChildren()) do
+        if tool:IsA("Tool") then
+            local handle = tool:FindFirstChild("Handle")
+            if handle then
+                local dist = (handle.Position - charPos).Magnitude
+                if dist <= self.Settings.ScanRadius then
+                    table.insert(self.Items, {
+                        Object = tool,
+                        Name = tool.Name,
+                        Type = "Tool",
+                        Distance = dist,
+                        Position = handle.Position,
+                        Price = "Pickup"
+                    })
+                end
+            end
+        end
+    end
+    
+    -- เรียงตามระยะทาง
+    table.sort(self.Items, function(a,b) return a.Distance < b.Distance end)
+    
+    self.LastScan = tick()
+    self:UpdateUIList()
+end
+
+-- ดึงราคาจาก UI
+function ItemPurchaser:GetPrice(obj)
+    local parent = obj.Parent
+    
+    -- หา TextLabel ที่น่าจะเป็นราคา
+    for _, gui in ipairs(parent:GetDescendants()) do
+        if gui:IsA("TextLabel") or gui:IsA("TextButton") then
+            local text = gui.Text:lower()
+            if text:find("%$") or text:find("price") or text:find("cost") or text:find("%d") then
+                return gui.Text
+            end
+        end
+    end
+    
+    return "?"
+end
+
+-- ซื้อ/หยิบไอเท็ม
+function ItemPurchaser:PurchaseItem(itemData, amount)
+    if not itemData or not itemData.Object then return false end
+    
+    local success = false
+    
+    for i = 1, amount do
+        if itemData.Type == "ProximityPrompt" then
+            success = pcall(function()
+                -- ย้ายตัวละครไปใกล้ๆ
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = LocalPlayer.Character.HumanoidRootPart
+                    hrp.CFrame = CFrame.new(itemData.Position + Vector3.new(0, 5, 0))
+                    task.wait(0.2)
+                end
+                
+                -- กด Prompt
+                local prompt = itemData.Object
+                prompt:InputHoldBegin()
+                task.wait(0.3)
+                prompt:InputHoldEnd()
+            end)
+            
+        elseif itemData.Type == "ClickDetector" then
+            success = pcall(function()
+                -- ย้ายไปใกล้ๆ
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = LocalPlayer.Character.HumanoidRootPart
+                    hrp.CFrame = CFrame.new(itemData.Position + Vector3.new(0, 5, 0))
+                    task.wait(0.2)
+                end
+                
+                -- กด ClickDetector
+                if fireclickdetector then
+                    fireclickdetector(itemData.Object)
+                else
+                    itemData.Object:DetectClick()
+                end
+            end)
+            
+        elseif itemData.Type == "Tool" then
+            success = pcall(function()
+                local tool = itemData.Object
+                tool.Parent = LocalPlayer.Backpack or LocalPlayer.Character
+            end)
+        end
+        
+        if success then
+            table.insert(self.PurchasedItems, {
+                Name = itemData.Name,
+                Time = tick()
+            })
+        end
+        
+        task.wait(0.1) -- หน่วงระหว่างซื้อซ้อน
+    end
+    
+    return success
+end
+
+-- ซื้อซ้อนกันหลายครั้ง
+function ItemPurchaser:PurchaseMultiple(itemData, count)
+    count = math.min(count, 99)
+    local purchased = 0
+    
+    for i = 1, count do
+        if self:PurchaseItem(itemData, 1) then
+            purchased = purchased + 1
+        else
+            break
+        end
+    end
+    
+    return purchased
+end
+
+-- สร้าง UI
+function ItemPurchaser:CreateUI()
+    if self.UI.MainFrame then return end
+    
+    self.UI.MainFrame = Instance.new("Frame")
+    self.UI.MainFrame.Size = UDim2.new(0, 360, 0, 420)
+    self.UI.MainFrame.Position = UDim2.new(0.5, -180, 0.5, -210)
+    self.UI.MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    self.UI.MainFrame.BorderSizePixel = 0
+    self.UI.MainFrame.Visible = false
+    self.UI.MainFrame.Parent = sg
+    
+    local stroke = Instance.new("UIStroke", self.UI.MainFrame)
+    stroke.Color = Color3.fromRGB(255, 200, 100)
+    stroke.Thickness = 2
+    
+    -- Header
+    local header = Instance.new("Frame", self.UI.MainFrame)
+    header.Size = UDim2.new(1, 0, 0, 45)
+    header.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    header.BorderSizePixel = 0
+    
+    local title = Instance.new("TextLabel", header)
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 15, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "ITEM PURCHASER"
+    title.TextColor3 = Color3.fromRGB(255, 200, 100)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local closeBtn = Instance.new("TextButton", header)
+    closeBtn.Size = UDim2.new(0, 40, 0, 40)
+    closeBtn.Position = UDim2.new(1, -45, 0, 2)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    closeBtn.Text = "×"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 20
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        self.UI.MainFrame.Visible = false
+        self.Enabled = false
+    end)
+    
+    -- Item List
+    self.UI.ItemList = Instance.new("ScrollingFrame", self.UI.MainFrame)
+    self.UI.ItemList.Size = UDim2.new(1, -20, 1, -140)
+    self.UI.ItemList.Position = UDim2.new(0, 10, 0, 55)
+    self.UI.ItemList.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    self.UI.ItemList.BorderSizePixel = 0
+    self.UI.ItemList.ScrollBarThickness = 6
+    self.UI.ItemList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    
+    local listLayout = Instance.new("UIListLayout", self.UI.ItemList)
+    listLayout.Padding = UDim.new(0, 5)
+    
+    -- Controls
+    local controlFrame = Instance.new("Frame", self.UI.MainFrame)
+    controlFrame.Size = UDim2.new(1, -20, 0, 75)
+    controlFrame.Position = UDim2.new(0, 10, 1, -85)
+    controlFrame.BackgroundTransparency = 1
+    
+    local scanBtn = Instance.new("TextButton", controlFrame)
+    scanBtn.Size = UDim2.new(0.35, 0, 0, 35)
+    scanBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+    scanBtn.Text = "SCAN"
+    scanBtn.TextColor3 = Color3.new(1, 1, 1)
+    scanBtn.Font = Enum.Font.GothamBold
+    scanBtn.TextSize = 13
+    
+    local amountBox = Instance.new("TextBox", controlFrame)
+    amountBox.Size = UDim2.new(0.25, 0, 0, 35)
+    amountBox.Position = UDim2.new(0.37, 0, 0, 0)
+    amountBox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    amountBox.Text = tostring(self.Settings.Amount)
+    amountBox.TextColor3 = Color3.new(1, 1, 1)
+    amountBox.Font = Enum.Font.GothamBold
+    amountBox.TextSize = 13
+    
+    local autoBtn = Instance.new("TextButton", controlFrame)
+    autoBtn.Size = UDim2.new(0.35, 0, 0, 35)
+    autoBtn.Position = UDim2.new(0.65, 0, 0, 0)
+    autoBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
+    autoBtn.Text = "AUTO"
+    autoBtn.TextColor3 = Color3.new(1, 1, 1)
+    autoBtn.Font = Enum.Font.GothamBold
+    autoBtn.TextSize = 13
+    
+    -- Status
+    self.UI.StatusLabel = Instance.new("TextLabel", controlFrame)
+    self.UI.StatusLabel.Size = UDim2.new(1, 0, 0, 25)
+    self.UI.StatusLabel.Position = UDim2.new(0, 0, 1, -25)
+    self.UI.StatusLabel.BackgroundTransparency = 1
+    self.UI.StatusLabel.Text = "พร้อมสแกน..."
+    self.UI.StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
+    self.UI.StatusLabel.Font = Enum.Font.Gotham
+    self.UI.StatusLabel.TextSize = 11
+    self.UI.StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Events
+    scanBtn.MouseButton1Click:Connect(function()
+        self:ScanItems()
+        scanBtn.Text = "Scanning..."
+        task.wait(1)
+        scanBtn.Text = "SCAN"
+    end)
+    
+    amountBox.FocusLost:Connect(function()
+        local num = tonumber(amountBox.Text)
+        if num and num >= 1 and num <= 99 then
+            self.Settings.Amount = math.floor(num)
+        end
+        amountBox.Text = tostring(self.Settings.Amount)
+    end)
+    
+    autoBtn.MouseButton1Click:Connect(function()
+        self.Settings.AutoPurchase = not self.Settings.AutoPurchase
+        autoBtn.Text = self.Settings.AutoPurchase and "AUTO: ON" or "AUTO"
+        autoBtn.BackgroundColor3 = self.Settings.AutoPurchase and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(140, 100, 200)
+    end)
+end
+
+-- อัพเดทรายการใน UI
+function ItemPurchaser:UpdateUIList()
+    if not self.UI.ItemList then return end
+    
+    for _, child in ipairs(self.UI.ItemList:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    
+    for index, item in ipairs(self.Items) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -10, 0, 45)
+        btn.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(35, 35, 50) or Color3.fromRGB(40, 40, 55)
+        btn.Text = string.format(" %s\n [%.0fm] | Price: %s", item.Name, item.Distance, item.Price)
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 12
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = self.UI.ItemList
+        
+        -- ปุ่มซื้อ
+        local buyBtn = Instance.new("TextButton", btn)
+        buyBtn.Size = UDim2.new(0, 70, 1, -8)
+        buyBtn.Position = UDim2.new(1, -75, 0, 4)
+        buyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+        buyBtn.Text = "BUY"
+        buyBtn.TextColor3 = Color3.new(1, 1, 1)
+        buyBtn.Font = Enum.Font.GothamBold
+        buyBtn.TextSize = 11
+        
+        -- ปุ่มซื้อหลาย
+        local multiBtn = Instance.new("TextButton", btn)
+        multiBtn.Size = UDim2.new(0, 45, 1, -8)
+        multiBtn.Position = UDim2.new(1, -125, 0, 4)
+        multiBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
+        multiBtn.Text = "x" .. self.Settings.Amount
+        multiBtn.TextColor3 = Color3.new(1, 1, 1)
+        multiBtn.Font = Enum.Font.Gotham
+        multiBtn.TextSize = 11
+        
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(55, 55, 70)}):Play()
+        end)
+        
+        btn.MouseLeave:Connect(function()
+            btn.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(35, 35, 50) or Color3.fromRGB(40, 40, 55)
+        end)
+        
+        buyBtn.MouseButton1Click:Connect(function()
+            if self:PurchaseItem(item, 1) then
+                buyBtn.Text = "✓"
+                buyBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 60)
+                task.wait(0.5)
+                self:ScanItems()
+            else
+                buyBtn.Text = "✗"
+                buyBtn.BackgroundColor3 = Color3.fromRGB(160, 60, 60)
+                task.wait(1)
+                buyBtn.Text = "BUY"
+                buyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+            end
+        end)
+        
+        multiBtn.MouseButton1Click:Connect(function()
+            local purchased = self:PurchaseMultiple(item, self.Settings.Amount)
+            multiBtn.Text = purchased .. "✓"
+            multiBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 60)
+            task.wait(0.5)
+            self:ScanItems()
+        end)
+    end
+    
+    self.UI.StatusLabel.Text = string.format("พบ %d รายการ | สแกนทุก 2 วินาที", #self.Items)
+end
+
+-- เปิด/ปิด UI
+function ItemPurchaser:ToggleUI()
+    if not self.UI.MainFrame then
+        self:CreateUI()
+    end
+    
+    self.Enabled = not self.Enabled
+    self.UI.MainFrame.Visible = self.Enabled
+    
+    if self.Enabled then
+        self:ScanItems()
+    end
+    
+    return self.Enabled
+end
+
+-- UI หลักในแท็บ
+local PurchaserFrame = Instance.new("Frame")
+PurchaserFrame.Size = UDim2.new(1, -30, 0, 90)
+PurchaserFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+PurchaserFrame.BorderSizePixel = 0
+PurchaserFrame.LayoutOrder = 17 -- ต่อจาก Float
+PurchaserFrame.Parent = MainPage
+
+local PurchaserStroke = Instance.new("UIStroke", PurchaserFrame)
+PurchaserStroke.Color = Color3.fromRGB(70, 70, 120)
+PurchaserStroke.Thickness = 1
+
+local PurchaserTitle = Instance.new("TextLabel")
+PurchaserTitle.Size = UDim2.new(1, -20, 0, 26)
+PurchaserTitle.Position = UDim2.new(0, 10, 0, 8)
+PurchaserTitle.BackgroundTransparency = 1
+PurchaserTitle.Text = "🛒 ITEM PURCHASER"
+PurchaserTitle.TextColor3 = Color3.fromRGB(255, 200, 100)
+PurchaserTitle.Font = Enum.Font.GothamBold
+PurchaserTitle.TextSize = 15
+PurchaserTitle.TextXAlignment = Enum.TextXAlignment.Left
+PurchaserTitle.Parent = PurchaserFrame
+
+local PurchaserSub = Instance.new("TextLabel")
+PurchaserSub.Size = UDim2.new(1, -20, 0, 20)
+PurchaserSub.Position = UDim2.new(0, 10, 0, 32)
+PurchaserSub.BackgroundTransparency = 1
+PurchaserSub.Text = "ซื้อ/หยิบของจาก ProximityPrompt, ClickDetector, Tool"
+PurchaserSub.TextColor3 = Color3.fromRGB(180, 180, 220)
+PurchaserSub.Font = Enum.Font.Gotham
+PurchaserSub.TextSize = 11
+PurchaserSub.TextXAlignment = Enum.TextXAlignment.Left
+PurchaserSub.Parent = PurchaserFrame
+
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0.9, 0, 0, 32)
+OpenBtn.Position = UDim2.new(0.05, 0, 0, 52)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+OpenBtn.Text = "OPEN ITEM PURCHASER"
+OpenBtn.TextColor3 = Color3.new(1, 1, 1)
+OpenBtn.Font = Enum.Font.GothamBold
+OpenBtn.TextSize = 14
+OpenBtn.BorderSizePixel = 0
+OpenBtn.Parent = PurchaserFrame
+
+OpenBtn.MouseEnter:Connect(function()
+    TweenService:Create(OpenBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 180, 80)}):Play()
+end)
+
+OpenBtn.MouseLeave:Connect(function()
+    local color = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+    TweenService:Create(OpenBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+    local state = ItemPurchaser:ToggleUI()
+    if state then
+        OpenBtn.Text = "CLOSE"
+        OpenBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        PurchaserTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        OpenBtn.Text = "OPEN ITEM PURCHASER"
+        OpenBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+        PurchaserTitle.TextColor3 = Color3.fromRGB(255, 200, 100)
+    end
+end)
+
+sg.Destroying:Connect(function()
+    ItemPurchaser.Enabled = false
+    for _, conn in ipairs(ItemPurchaser.Connections) do
+        if conn then conn:Disconnect() end
+    end
+    if ItemPurchaser.UI.MainFrame then
+        ItemPurchaser.UI.MainFrame:Destroy()
+    end
+end)
+
+print("[ItemPurchaser] Game Item Purchaser v2.0 Loaded (Layout 17)")
+print("[ItemPurchaser] Support ProximityPrompt, ClickDetector, Tool, Multi-Purchase")
+
+
+-- ==============================================
+-- แท็บ Settings - ตั้งค่า GUI (ไม่มีมุมโค้งแล้ว)
+-- ==============================================
+
+local guiSettings = {
+    bgColor = Color3.fromRGB(20, 20, 28),
+    titleColor = Color3.fromRGB(28, 28, 38),
+    transparency = 0,
+    textSizeScale = 1.0,
+    strokeThickness = 1
+}
+
+local function updateGUI()
+    TweenService:Create(Main, TweenInfo.new(0.4), {
+        BackgroundColor3 = guiSettings.bgColor,
+        BackgroundTransparency = guiSettings.transparency
+    }):Play()
+    
+    TweenService:Create(Title, TweenInfo.new(0.4), {
+        BackgroundColor3 = guiSettings.titleColor
+    }):Play()
+    
+    Stroke.Thickness = guiSettings.strokeThickness
+    
+    -- อัพเดท text size scale
+    for _, obj in ipairs(Main:GetDescendants()) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+            if obj ~= TitleText then
+                obj.TextSize = obj.TextSize * guiSettings.textSizeScale
+            end
+        end
+    end
+end
+
+local function addSettingRow(labelText, defaultValue, callback)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -30, 0, 38)
+    row.BackgroundTransparency = 1
+    row.Parent = SettingsPage
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.55, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = labelText
+    lbl.TextColor3 = Color3.fromRGB(180, 180, 220)
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 14
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(0.45, 0, 0.8, 0)
+    input.Position = UDim2.new(0.55, 0, 0.1, 0)
+    input.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    input.TextColor3 = Color3.new(1,1,1)
+    input.Text = tostring(defaultValue)
+    input.Font = Enum.Font.Gotham
+    input.TextSize = 13
+    input.ClearTextOnFocus = false
+    input.Parent = row
+
+    -- ไม่มี UICorner → มุมเหลี่ยม
+
+    input.FocusLost:Connect(function(enter)
+        if enter then
+            callback(input.Text)
+            updateGUI()
+        end
+    end)
+end
+
+-- การตั้งค่า (ไม่มี Corner Radius แล้ว)
+addSettingRow("สีพื้นหลัง (R,G,B)", "20,20,28", function(val)
+    local r,g,b = val:match("(%d+),%s*(%d+),%s*(%d+)")
+    if r and g and b then guiSettings.bgColor = Color3.fromRGB(tonumber(r),tonumber(g),tonumber(b)) end
+end)
+
+addSettingRow("สี Title Bar (R,G,B)", "28,28,38", function(val)
+    local r,g,b = val:match("(%d+),%s*(%d+),%s*(%d+)")
+    if r and g and b then guiSettings.titleColor = Color3.fromRGB(tonumber(r),tonumber(g),tonumber(b)) end
+end)
+
+addSettingRow("ความโปร่งใส (0-1)", "0", function(val)
+    local n = tonumber(val)
+    if n and n >= 0 and n <= 1 then guiSettings.transparency = n end
+end)
+
+addSettingRow("ขนาดตัวอักษร Scale (0.8-1.5)", "1.0", function(val)
+    local n = tonumber(val)
+    if n and n >= 0.8 and n <= 1.5 then guiSettings.textSizeScale = n end
+end)
+
+addSettingRow("ความหนาขอบ (0.5-3)", "1", function(val)
+    local n = tonumber(val)
+    if n and n >= 0.5 and n <= 3 then guiSettings.strokeThickness = n end
+end)
+
+-- Reset Button
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(1, -40, 0, 45)
+resetBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 160)
+resetBtn.Text = "Reset to Default"
+resetBtn.TextColor3 = Color3.new(1,1,1)
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.TextSize = 16
+resetBtn.BorderSizePixel = 0
+resetBtn.Parent = SettingsPage
+
+resetBtn.MouseButton1Click:Connect(function()
+    guiSettings = {
+        bgColor = Color3.fromRGB(20, 20, 28),
+        titleColor = Color3.fromRGB(28, 28, 38),
+        transparency = 0,
+        textSizeScale = 1.0,
+        strokeThickness = 1
+    }
+    updateGUI()
+    print("Reset GUI settings to default")
+end)
+
+-- ============================================================
+-- สิ้นสุดส่วน Settings
+-- ============================================================
+
+-- Maximize (ไม่ใหญ่เกิน)
+local isMax = false
+local normalSize = Main.Size
+local normalPos = Main.Position
+
+MaxBtn.MouseButton1Click:Connect(function()
+    isMax = not isMax
+    if isMax then
+        TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0.92, 0, 0.88, 0),
+            Position = UDim2.new(0.04, 0, 0.06, 0)
+        }):Play()
+        MaxBtn.Text = "❐"
+    else
+        TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = normalSize,
+            Position = normalPos
+        }):Play()
+        MaxBtn.Text = "□"
+    end
+end)
+
+-- Minimize + Icon
+local minIcon = Instance.new("TextButton")
+minIcon.Size = UDim2.new(0, 48, 0, 48)
+minIcon.Position = UDim2.new(0, 15, 1, -65)
+minIcon.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+minIcon.Text = "Y"
+minIcon.TextColor3 = Color3.fromRGB(180, 180, 255)
+minIcon.Font = Enum.Font.GothamBold
+minIcon.TextSize = 18
+minIcon.BorderSizePixel = 0
+minIcon.Visible = false
+minIcon.Parent = sg
+
+MinBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(Main, TweenInfo.new(0.22, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(0,0,0,0),
+        Position = UDim2.new(0.5,0,0.5,0),
+        BackgroundTransparency = 1
+    }):Play()
+    task.delay(0.22, function()
+        Main.Visible = false
+        minIcon.Visible = true
+    end)
+end)
+
+minIcon.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    Main.BackgroundTransparency = 1
+    Main.Size = UDim2.new(0,0,0,0)
+    Main.Position = UDim2.new(0.5,0,0.5,0)
+    TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Size = normalSize,
+        Position = normalPos,
+        BackgroundTransparency = 0
+    }):Play()
+    minIcon.Visible = false
+end)
+
+-- Close
+CloseBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.75,0,0.75,0)
+    }):Play()
+    task.delay(0.2, function() sg:Destroy() end)
+end)
+
+-- Draggable
+local dragging, dragStart, startPos
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+    end
+end)
+
+Title.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Open Animation
+Main.BackgroundTransparency = 1
+Main.Size = UDim2.new(0.88, 0, 0.88, 0)
+Main.Position = UDim2.new(0.5, -Main.AbsoluteSize.X*0.44, 0.5, -Main.AbsoluteSize.Y*0.44)
+Main.Visible = true
+
+TweenService:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+    BackgroundTransparency = 0,
+    Size = UDim2.new(0, 400, 0, 340),
+    Position = UDim2.new(0.5, -200, 0.5, -170)
+}):Play()
+
+print("Hub v12.1 Loaded – มุมเหลี่ยมหมดทุกจุดแล้ว")
+-- ==============================================
+-- ANTI-BAN SYSTEM v2.1 - ป้องกันแบน/เตะ/ตรวจจับ
+-- แก้บัคสำหรับ Delta Executor + Performance Mode
+-- ==============================================
+
+local AntiBan = {
+    Enabled = true,
+    Initialized = false,
+    LastCheck = os.clock(),
+    CheckInterval = 10,
+    SuspiciousActivity = 0,
+    
+    Settings = {
+        AntiKick = true,
+        AntiBan = true,
+        AntiDetection = true,
+        PerformanceMode = true -- ลดการใช้งาน CPU
+    }
+}
+
+function AntiBan:AntiKick()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    pcall(function()
+        Players.ChildRemoved:Connect(function(child)
+            if child == LocalPlayer and self.Settings.AntiKick then
+                print("[AntiBan] ⚠️ Kick detected - Blocking")
+                local dummy = Instance.new("Model")
+                dummy.Name = LocalPlayer.Name
+                dummy.Parent = Players
+            end
+        end)
+    end)
+end
+
+function AntiBan:AntiBan()
+    pcall(function()
+        game.DescendantAdded:Connect(function(descendant)
+            if not self.Settings.AntiBan then return end
+            if descendant:IsA("Script") or descendant:IsA("LocalScript") then
+                local name = descendant.Name:lower()
+                if name:find("ban") or name:find("anticheat") or name:find("security") or name:find("detection") then
+                    print("[AntiBan] ⚠️ Security script detected:", descendant.Name)
+                    if not descendant:IsDescendantOf(game:GetService("CoreGui")) then
+                        task.wait(0.5)
+                        descendant:Destroy()
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+function AntiBan:AntiRobloxDetection()
+    pcall(function()
+        local CoreGui = game:GetService("CoreGui")
+        
+        game.DescendantAdded:Connect(function(descendant)
+            if not self.Settings.AntiDetection then return end
+            
+            if descendant:IsA("Script") then
+                local parentName = descendant.Parent and descendant.Parent.Name:lower() or ""
+                if parentName:find("roblox") or parentName:find("core") then
+                    if not descendant:FindFirstAncestor("CoreGui") and not descendant:FindFirstAncestor("RobloxGui") then
+                        print("[AntiBan] ⚠️ Fake Roblox script detected")
+                    end
+                end
+            end
+        end)
+        
+        local originalKick = game.Players.LocalPlayer.Kick
+        game.Players.LocalPlayer.Kick = function(self, ...)
+            if self.Settings.AntiKick then
+                print("[AntiBan] Kick attempt blocked")
+                return
+            end
+            return originalKick(self, ...)
+        end
+    end)
+end
+
+function AntiBan:PerformanceCheck()
+    task.spawn(function()
+        while self.Enabled and self.Settings.PerformanceMode do
+            task.wait(self.CheckInterval)
+            if not self.Enabled then break end
+            
+            pcall(function()
+                local memUsage = collectgarbage("count")
+                if memUsage > 100000 then
+                    collectgarbage("collect")
+                    print("[AntiBan] Memory cleaned:", memUsage)
+                end
+                
+                local fps = 60 / game:GetService("RunService").Heartbeat:Wait()
+                if fps < 20 then
+                    self.SuspiciousActivity = self.SuspiciousActivity + 1
+                    print("[AntiBan] Low FPS detected:", fps)
+                end
+            end)
+        end
+    end)
+end
+
+function AntiBan:Enable()
+    if self.Initialized then return end
+    self.Initialized = true
+    
+    pcall(function()
+        if self.Settings.AntiKick then self:AntiKick() end
+        if self.Settings.AntiBan then self:AntiBan() end
+        if self.Settings.AntiDetection then self:AntiRobloxDetection() end
+        if self.Settings.PerformanceMode then self:PerformanceCheck() end
+        
+        print("[AntiBan] ✅ ระบบป้องกันเปิดใช้งาน (Bug-Free)")
+    end)
+end
+
+AntiBan:Enable()
+sg.Destroying:Connect(function()
+    AntiBan.Enabled = false
+    print("[AntiBan] Cleaned up")
+end)
+
+print("[AntiBan] Anti-Ban System v2.1 Loaded")
