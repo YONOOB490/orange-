@@ -5123,15 +5123,60 @@ sg.Destroying:Connect(function()
         ItemPurchaser.UI.MainFrame:Destroy()
     end
 end)
-
-print("[ItemPurchaser] v4.0 - Major Upgrade Loaded")
-print("[ItemPurchaser] Features: Filters, Categories, Smart Detection, Better UI")
-
     categoryBtn.MouseButton1Click:Connect(function()
         local categories = {"All", "Weapons", "Tools", "Consumables", "Misc"}
         local idx = table.find(categories, self.Filters.Category) or 1
         self.Filters.Category = categories[idx % #categories + 1]
-      
+        categoryBtn.Text = self.Filters.Category
+        self:UpdateDisplay()
+    end)
+
+    -- ปิดการทำงานเมื่อ GUI ถูกทำลาย
+    sg.Destroying:Connect(function()
+        self.Enabled = false
+        if self.UI.MainFrame then
+            self.UI.MainFrame:Destroy()
+        end
+    end)
+end) -- ปิดฟังก์ชัน ItemPurchaser:CreateUI()
+
+-- เชื่อมกับปุ่ม Toggle (แก้ scope)
+local function CreatePurchaserToggle()
+    local PurchaserToggleBtn = MainPage:FindFirstChild("OpenPurchaser")
+    if not PurchaserToggleBtn then
+        PurchaserToggleBtn = Instance.new("TextButton")
+        PurchaserToggleBtn.Name = "OpenPurchaser"
+        PurchaserToggleBtn.Size = UDim2.new(1, -30, 0, 36)
+        PurchaserToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+        PurchaserToggleBtn.Text = "OPEN ITEM PURCHASER"
+        PurchaserToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+        PurchaserToggleBtn.Font = Enum.Font.GothamBold
+        PurchaserToggleBtn.TextSize = 13
+        PurchaserToggleBtn.BorderSizePixel = 0
+        PurchaserToggleBtn.LayoutOrder = 17.5
+        PurchaserToggleBtn.Parent = MainPage
+    end
+
+    PurchaserToggleBtn.MouseEnter:Connect(function()
+        TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 180, 80)}):Play()
+    end)
+
+    PurchaserToggleBtn.MouseLeave:Connect(function()
+        local color = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+        TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+    end)
+
+    PurchaserToggleBtn.MouseButton1Click:Connect(function()
+        local state = ItemPurchaser:Toggle()
+        PurchaserToggleBtn.Text = state and "CLOSE ITEM PURCHASER" or "OPEN ITEM PURCHASER"
+        PurchaserToggleBtn.BackgroundColor3 = state and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+    end)
+end
+
+CreatePurchaserToggle()
+
+print("[ItemPurchaser] v4.0 - Major Upgrade Loaded")
+print("[ItemPurchaser] Features: Filters, Categories, Smart Detection, Better UI")
 -- ==============================================
 -- แท็บ Settings - ตั้งค่า GUI (ไม่มีมุมโค้งแล้ว)
 -- ==============================================
@@ -5470,10 +5515,11 @@ function AntiBan:Enable()
     self.Initialized = true
     
     pcall(function()
-        if self.Settings.AntiKick then self:AntiKick() end
-        if self.Settings.AntiBan then self:AntiBan() end
-        if self.Settings.AntiDetection then self:AntiRobloxDetection() end
-        if self.Settings.PerformanceMode then self:PerformanceCheck() end
+        -- แก้จาก self.Settings เป็น AntiBan.Settings
+        if AntiBan.Settings.AntiKick then AntiBan:AntiKick() end
+        if AntiBan.Settings.AntiBan then AntiBan:AntiBan() end
+        if AntiBan.Settings.AntiDetection then AntiBan:AntiRobloxDetection() end
+        if AntiBan.Settings.PerformanceMode then AntiBan:PerformanceCheck() end
         
         print("[AntiBan] ✅ ระบบป้องกันเปิดใช้งาน (Bug-Free)")
     end)
@@ -5486,3 +5532,11 @@ sg.Destroying:Connect(function()
 end)
 
 print("[AntiBan] Anti-Ban System v2.1 Loaded")
+-- เริ่มต้นระบบสำคัญ
+task.wait(0.5)
+ESP:Clear()
+ItemESP:Clear()
+
+-- ตั้งค่าเริ่มต้น
+AntiBan:Enable()
+print("[Hub] เริ่มต้นระบบ AntiBan เรียบร้อย")
