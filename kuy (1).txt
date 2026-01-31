@@ -111,7 +111,7 @@ SettingsPage.BackgroundTransparency = 1
 SettingsPage.ScrollBarThickness = 4
 SettingsPage.Visible = false
 SettingsPage.Parent = Content
-MainPage.CanvasSize = UDim2.new(0, 0, 0, 2500)
+MainPage.CanvasSize = UDim2.new(0, 0, 0, 2900)
 
 local MainLayout = Instance.new("UIListLayout")
 MainLayout.Padding = UDim.new(0, 10)
@@ -4532,9 +4532,9 @@ end)
 print("[Float] Float / Anti-Gravity Loaded (Layout 16)")
 print("[Float] ปรับความสูง 1-5 studs, กดปุ่ม ON เพื่อลอย")
 -- ==============================================
--- GAME ITEM PURCHASER v4.0 - MAJOR UPGRADE
+-- GAME ITEM PURCHASER v4.0 - MAJOR UPGRADE (DEBUG MODE)
 -- Features: Smart Detection, Filters, Categories, Bulk Actions, Better UI
--- แทนที่เวอร์ชันเก่าใน Main Tab
+-- แก้บัค: ลดการกรองเริ่มต้น, เพิ่มการตรวจจับ fallback
 -- ==============================================
 
 local ItemPurchaser = {
@@ -4557,22 +4557,22 @@ local ItemPurchaser = {
         PurchaseDelay = 0.1,
         MaxQueue = 15,
         InventoryLimit = 50,
-        SmartMode = true -- ซื้อเฉพาะไอเท็มที่ดีกว่าที่มี
+        SmartMode = true
     },
     Filters = {
         SearchTerm = "",
-        Category = "All", -- All, Weapons, Tools, Consumables, Misc
+        Category = "All",
         MinPrice = 0,
         MaxPrice = math.huge
     },
-    SortMode = "Distance", -- Distance, Name, Type
+    SortMode = "Distance",
     Items = {},
     LastScan = 0,
-    ScanCooldown = 2, -- ลดการสแกนบ่อยเพื่อประสิทธิภาพ
+    ScanCooldown = 2,
     CategoryKeywords = {
-        Weapons = {"sword", "gun", "blade", "bow", "staff", "hammer", "dagger", "weapon", "rifle", "pistol", "launcher", "cannon", "sniper"},
-        Tools = {"tool", "pickaxe", "axe", "shovel", "hammer", "wrench", "key", "kit", "drill", "cutter"},
-        Consumables = {"potion", "food", "drink", "medic", "bandage", "ammo", "bullet", "grenade", "bomb", "candy"}
+        Weapons = {"sword", "gun", "blade", "bow", "staff", "hammer", "dagger", "weapon", "rifle", "pistol", "launcher", "cannon", "sniper", "axe", "club", "mace"},
+        Tools = {"tool", "pickaxe", "shovel", "wrench", "key", "kit", "drill", "cutter", "hammer"},
+        Consumables = {"potion", "food", "drink", "medic", "bandage", "ammo", "bullet", "grenade", "bomb", "candy", "heal", "boost"}
     }
 }
 
@@ -4593,16 +4593,22 @@ end
 
 function ItemPurchaser:IsPurchaseableItem(obj)
     if not obj then return false, nil end
+    
+    -- DEBUG: พิมพ์ชื่อ object ที่ตรวจพบ
+    print("[ItemPurchaser] ตรวจพบ: " .. obj.ClassName .. " | Parent: " .. (obj.Parent and obj.Parent.Name or "No parent"))
+    
     if obj:IsA("ProximityPrompt") then
         if obj.ObjectText and obj.ObjectText ~= "" then
             return true, obj.ObjectText
         end
         local action = obj.ActionText:lower()
         if action:find("purchase") or action:find("buy") or action:find("collect") or 
-           action:find("equip") or action:find("grab") or action:find("take") then
+           action:find("equip") or action:find("grab") or action:find("take") or
+           action:find("get") or action:find("pick") then
             return true, obj.Parent.Name
         end
     end
+    
     if obj:IsA("ClickDetector") then
         local parent = obj.Parent
         if parent and (parent:FindFirstChildWhichIsA("SurfaceGui") or parent:FindFirstChildWhichIsA("BillboardGui")) then
@@ -4611,15 +4617,26 @@ function ItemPurchaser:IsPurchaseableItem(obj)
         local tool = parent:FindFirstChildWhichIsA("Tool")
         if tool then return true, tool.Name end
     end
+    
     if obj:IsA("Tool") and obj.Parent == workspace then
         return true, obj.Name
     end
+    
     if obj:IsA("Model") then
         local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
         if prompt then return self:IsPurchaseableItem(prompt) end
         local click = obj:FindFirstChildWhichIsA("ClickDetector")
         if click then return self:IsPurchaseableItem(click) end
     end
+    
+    -- Fallback: ถ้าเป็นสิ่งของวางบนพื้นที่เล็กๆ
+    if obj:IsA("BasePart") and obj.Parent and obj.Parent:IsA("Model") then
+        local size = obj.Size.Magnitude
+        if size < 10 then -- ขนาดเล็ก = น่าจะเป็นไอเท็ม
+            return true, obj.Parent.Name
+        end
+    end
+    
     return false, nil
 end
 
@@ -4721,6 +4738,7 @@ function ItemPurchaser:ScanItems()
     local charPos = myHRP.Position
     local parts = workspace:GetPartBoundsInRadius(charPos, self.Settings.ScanRadius)
     local processed = {}
+    local foundCount = 0 -- DEBUG
     
     for _, part in ipairs(parts) do
         local parent = part.Parent
@@ -4728,13 +4746,15 @@ function ItemPurchaser:ScanItems()
             processed[parent] = true
             local obj = parent:FindFirstChildWhichIsA("ProximityPrompt") or 
                        parent:FindFirstChildWhichIsA("ClickDetector") or
-                       (parent:IsA("Tool") and parent)
+                       (parent:IsA("Tool") and parent) or
+                       parent:FindFirstChildWhichIsA("Tool")
             
             if obj then
                 local isItem, itemName = self:IsPurchaseableItem(obj)
                 if isItem and itemName then
                     local dist = (part.Position - charPos).Magnitude
                     if dist <= self.Settings.ScanRadius then
+                        foundCount = foundCount + 1 -- DEBUG
                         local category = self:CategorizeItem(itemName)
                         table.insert(self.Items, {
                             Object = obj,
@@ -4751,6 +4771,9 @@ function ItemPurchaser:ScanItems()
         end
     end
     
+    -- DEBUG: แสดงจำนวนที่ตรวจพบ
+    print("[ItemPurchaser] ตรวจพบไอเท็มทั้งหมด: " .. foundCount .. " ชิ้น")
+    
     self:SortItems()
     self:UpdateDisplay()
 end
@@ -4758,9 +4781,11 @@ end
 function ItemPurchaser:FilterItems()
     local filtered = {}
     for _, item in ipairs(self.Items) do
+        -- ลดการกรอง: เช็คแค่ชื่อถ้ามีการค้นหา
         if self.Filters.SearchTerm ~= "" and not item.Name:lower():find(self.Filters.SearchTerm) then
             continue
         end
+        -- ลดการกรอง: ถ้าเลือก All ให้แสดงทั้งหมด
         if self.Filters.Category ~= "All" and item.Category ~= self.Filters.Category then
             continue
         end
@@ -4778,8 +4803,11 @@ function ItemPurchaser:UpdateDisplay()
     
     local filtered = self:FilterItems()
     
+    -- DEBUG: แสดงจำนวนหลังกรอง
+    print("[ItemPurchaser] หลังกรอง: " .. #filtered .. " รายการ")
+    
     if #filtered == 0 then
-        self.UI.StatusLabel.Text = "ไม่พบไอเท็มที่ตรงเงื่อนไข"
+        self.UI.StatusLabel.Text = "ไม่พบไอเท็มที่ตรงเงื่อนไข (พบทั้งหมด: " .. #self.Items .. ")"
         return
     end
     
@@ -4787,7 +4815,7 @@ function ItemPurchaser:UpdateDisplay()
         if index > 15 then break end
         
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, -10, 0, 36)
+        btn.Size = UDim2.new(1, -10, 0, 34)
         btn.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(35, 35, 48) or Color3.fromRGB(40, 40, 53)
         btn.Text = string.format(" %s [%s] [%.0fm]", item.Name, item.Category:sub(1,1), item.Distance)
         btn.TextColor3 = Color3.new(1, 1, 1)
@@ -4797,8 +4825,8 @@ function ItemPurchaser:UpdateDisplay()
         btn.Parent = self.UI.ItemList
         
         local multiBtn = Instance.new("TextButton")
-        multiBtn.Size = UDim2.new(0, 55, 1, -6)
-        multiBtn.Position = UDim2.new(1, -60, 0, 3)
+        multiBtn.Size = UDim2.new(0, 50, 1, -6)
+        multiBtn.Position = UDim2.new(1, -55, 0, 3)
         multiBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
         multiBtn.Text = "x" .. self.Settings.Amount
         multiBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -4828,7 +4856,10 @@ function ItemPurchaser:UpdateDisplay()
 end
 
 function ItemPurchaser:CreateUI()
-    if self.UI.MainFrame then return end
+    if self.UI.MainFrame then 
+        -- ถ้ามีอยู่แล้ว ลบทิ้งก่อนสร้างใหม่
+        self.UI.MainFrame:Destroy()
+    end
     
     self.UI.MainFrame = Instance.new("Frame")
     self.UI.MainFrame.Name = "PurchaserFrame"
@@ -5023,14 +5054,6 @@ function ItemPurchaser:CreateUI()
         self:UpdateDisplay()
     end)
     
-    categoryBtn.MouseButton1Click:Connect(function()
-        local categories = {"All", "Weapons", "Tools", "Consumables", "Misc"}
-        local idx = table.find(categories, self.Filters.Category) or 1
-        self.Filters.Category = categories[idx % #categories + 1]
-        categoryBtn.Text = self.Filters.Category
-        self:UpdateDisplay()
-    end)
-    
     self.UI.RadiusSlider.MouseButton1Click:Connect(function(x)
         local relativeX = x - self.UI.RadiusSlider.AbsolutePosition.X
         local percentage = math.clamp(relativeX / self.UI.RadiusSlider.AbsoluteSize.X, 0, 1)
@@ -5039,133 +5062,6 @@ function ItemPurchaser:CreateUI()
         radiusDisplay.Text = tostring(newRadius)
         radiusHandle.Position = UDim2.new(percentage, 0, 0, 0)
     end)
-end
-
-function ItemPurchaser:SortItems()
-    if self.SortMode == "Distance" then
-        table.sort(self.Items, function(a,b) return a.Distance < b.Distance end)
-    elseif self.SortMode == "Name" then
-        table.sort(self.Items, function(a,b) return a.Name < b.Name end)
-    elseif self.SortMode == "Type" then
-        table.sort(self.Items, function(a,b) return a.Type < b.Type end)
-    end
-end
-
-function ItemPurchaser:ScanItems()
-    if tick() - self.LastScan < self.ScanCooldown then return end
-    self.LastScan = tick()
-    self.Items = {}
-    
-    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not myHRP then return end
-    
-    local charPos = myHRP.Position
-    local parts = workspace:GetPartBoundsInRadius(charPos, self.Settings.ScanRadius)
-    local processed = {}
-    
-    for _, part in ipairs(parts) do
-        local parent = part.Parent
-        if parent and not processed[parent] then
-            processed[parent] = true
-            local obj = parent:FindFirstChildWhichIsA("ProximityPrompt") or 
-                       parent:FindFirstChildWhichIsA("ClickDetector") or
-                       (parent:IsA("Tool") and parent)
-            
-            if obj then
-                local isItem, itemName = self:IsPurchaseableItem(obj)
-                if isItem and itemName then
-                    local dist = (part.Position - charPos).Magnitude
-                    if dist <= self.Settings.ScanRadius then
-                        local category = self:CategorizeItem(itemName)
-                        table.insert(self.Items, {
-                            Object = obj,
-                            Name = itemName,
-                            Type = obj.ClassName,
-                            Distance = dist,
-                            Position = part.Position,
-                            Category = category,
-                            Price = self:GetPrice(obj)
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    self:SortItems()
-    self:UpdateDisplay()
-end
-
-function ItemPurchaser:FilterItems()
-    local filtered = {}
-    for _, item in ipairs(self.Items) do
-        if self.Filters.SearchTerm ~= "" and not item.Name:lower():find(self.Filters.SearchTerm) then
-            continue
-        end
-        if self.Filters.Category ~= "All" and item.Category ~= self.Filters.Category then
-            continue
-        end
-        table.insert(filtered, item)
-    end
-    return filtered
-end
-
-function ItemPurchaser:UpdateDisplay()
-    if not self.UI.ItemList then return end
-    
-    for _, child in ipairs(self.UI.ItemList:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-    
-    local filtered = self:FilterItems()
-    
-    if #filtered == 0 then
-        self.UI.StatusLabel.Text = "ไม่พบไอเท็มที่ตรงเงื่อนไข"
-        return
-    end
-    
-    for index, item in ipairs(filtered) do
-        if index > 15 then break end
-        
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, -10, 0, 34)
-        btn.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(35, 35, 48) or Color3.fromRGB(40, 40, 53)
-        btn.Text = string.format(" %s [%s] [%.0fm]", item.Name, item.Category:sub(1,1), item.Distance)
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 11
-        btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.Parent = self.UI.ItemList
-        
-        local multiBtn = Instance.new("TextButton")
-        multiBtn.Size = UDim2.new(0, 50, 1, -6)
-        multiBtn.Position = UDim2.new(1, -55, 0, 3)
-        multiBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
-        multiBtn.Text = "x" .. self.Settings.Amount
-        multiBtn.TextColor3 = Color3.new(1, 1, 1)
-        multiBtn.Font = Enum.Font.GothamBold
-        multiBtn.TextSize = 10
-        multiBtn.Parent = btn
-        
-        btn.MouseEnter:Connect(function()
-            TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(55, 55, 70)}):Play()
-        end)
-        
-        btn.MouseLeave:Connect(function()
-            btn.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(35, 35, 48) or Color3.fromRGB(40, 40, 53)
-        end)
-        
-        multiBtn.MouseButton1Click:Connect(function()
-            local success = self:PurchaseItem(item)
-            multiBtn.Text = success and "✓" or "✗"
-            multiBtn.BackgroundColor3 = success and Color3.fromRGB(60, 160, 60) or Color3.fromRGB(160, 60, 60)
-            task.wait(0.5)
-            self:ScanItems()
-        end)
-    end
-    
-    self.UI.StatusLabel.Text = string.format("แสดง %d/%d รายการ | ลิมิต: %d/%d", 
-        math.min(#filtered, 15), #filtered, self:GetInventoryCount(), self.Settings.InventoryLimit)
 end
 
 function ItemPurchaser:Toggle()
@@ -5191,17 +5087,20 @@ function ItemPurchaser:Toggle()
 end
 
 -- เชื่อมกับปุ่ม Toggle
-local PurchaserToggleBtn = MainPage:FindFirstChild("OpenPurchaser") or Instance.new("TextButton")
-PurchaserToggleBtn.Name = "OpenPurchaser"
-PurchaserToggleBtn.Size = UDim2.new(1, -30, 0, 36)
-PurchaserToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
-PurchaserToggleBtn.Text = "OPEN ITEM PURCHASER"
-PurchaserToggleBtn.TextColor3 = Color3.new(1, 1, 1)
-PurchaserToggleBtn.Font = Enum.Font.GothamBold
-PurchaserToggleBtn.TextSize = 13
-PurchaserToggleBtn.BorderSizePixel = 0
-PurchaserToggleBtn.LayoutOrder = 17.5
-PurchaserToggleBtn.Parent = MainPage
+local PurchaserToggleBtn = MainPage:FindFirstChild("OpenPurchaser")
+if not PurchaserToggleBtn then
+    PurchaserToggleBtn = Instance.new("TextButton")
+    PurchaserToggleBtn.Name = "OpenPurchaser"
+    PurchaserToggleBtn.Size = UDim2.new(1, -30, 0, 36)
+    PurchaserToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+    PurchaserToggleBtn.Text = "OPEN ITEM PURCHASER"
+    PurchaserToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    PurchaserToggleBtn.Font = Enum.Font.GothamBold
+    PurchaserToggleBtn.TextSize = 13
+    PurchaserToggleBtn.BorderSizePixel = 0
+    PurchaserToggleBtn.LayoutOrder = 17.5
+    PurchaserToggleBtn.Parent = MainPage
+end
 
 PurchaserToggleBtn.MouseEnter:Connect(function()
     TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 180, 80)}):Play()
@@ -5228,6 +5127,11 @@ end)
 print("[ItemPurchaser] v4.0 - Major Upgrade Loaded")
 print("[ItemPurchaser] Features: Filters, Categories, Smart Detection, Better UI")
 
+    categoryBtn.MouseButton1Click:Connect(function()
+        local categories = {"All", "Weapons", "Tools", "Consumables", "Misc"}
+        local idx = table.find(categories, self.Filters.Category) or 1
+        self.Filters.Category = categories[idx % #categories + 1]
+      
 -- ==============================================
 -- แท็บ Settings - ตั้งค่า GUI (ไม่มีมุมโค้งแล้ว)
 -- ==============================================
@@ -5347,388 +5251,6 @@ resetBtn.MouseButton1Click:Connect(function()
     updateGUI()
     print("Reset GUI settings to default")
 end)
--- ==============================================
--- GAME ITEM PURCHASER v3.1 - UI ใน Main Tab
--- สร้าง Frame แสดงใน Main Page (ไม่ใช่ Popup)
--- ==============================================
-
-local ItemPurchaser = {
-    Enabled = false,
-    UI = {
-        MainFrame = nil,
-        StatusLabel = nil,
-        AmountBox = nil,
-        AutoEquipToggle = nil
-    },
-    Settings = {
-        ScanRadius = 300,
-        AutoPurchase = false,
-        AutoEquip = false,
-        Amount = 1,
-        PurchaseDelay = 0.1,
-        MaxQueue = 15,
-        InventoryLimit = 50
-    },
-    Items = {},
-    LastScan = 0
-}
-
-function ItemPurchaser:GetInventoryCount()
-    local count = 0
-    if LocalPlayer.Backpack then
-        count = #LocalPlayer.Backpack:GetChildren()
-    end
-    if LocalPlayer.Character then
-        for _, child in ipairs(LocalPlayer.Character:GetChildren()) do
-            if child:IsA("Tool") then
-                count = count + 1
-            end
-        end
-    end
-    return count
-end
-
-function ItemPurchaser:IsPurchaseableItem(obj)
-    if not obj then return false, nil end
-    if obj:IsA("ProximityPrompt") then
-        if obj.ObjectText and obj.ObjectText ~= "" then
-            return true, obj.ObjectText
-        end
-        local action = obj.ActionText:lower()
-        if action:find("purchase") or action:find("buy") or action:find("collect") or 
-           action:find("equip") or action:find("grab") or action:find("take") then
-            return true, obj.Parent.Name
-        end
-    end
-    if obj:IsA("ClickDetector") then
-        local parent = obj.Parent
-        if parent:FindFirstChildWhichIsA("SurfaceGui") or parent:FindFirstChildWhichIsA("BillboardGui") then
-            return true, parent.Name
-        end
-        if parent:FindFirstChildWhichIsA("Tool") then
-            return true, parent:FindFirstChildWhichIsA("Tool").Name
-        end
-    end
-    if obj:IsA("Tool") and obj.Parent == workspace then
-        return true, obj.Name
-    end
-    if obj:IsA("Model") then
-        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
-        if prompt then return self:IsPurchaseableItem(prompt) end
-        local click = obj:FindFirstChildWhichIsA("ClickDetector")
-        if click then return self:IsPurchaseableItem(click) end
-    end
-    return false, nil
-end
-
-function ItemPurchaser:PurchaseItem(itemData)
-    if not itemData or not itemData.Object then return false end
-    
-    local currentCount = self:GetInventoryCount()
-    if currentCount >= self.Settings.InventoryLimit then
-        return false
-    end
-    
-    local success = false
-    
-    if itemData.Type == "Tool" then
-        local successClone = pcall(function()
-            local tool = itemData.Object:Clone()
-            if tool then
-                for _, prop in ipairs({"GripPos", "GripForward", "GripRight", "GripUp"}) do
-                    if itemData.Object[prop] then
-                        tool[prop] = itemData.Object[prop]
-                    end
-                end
-                tool.Parent = LocalPlayer.Backpack or LocalPlayer.Character
-                success = true
-                if self.Settings.AutoEquip then
-                    LocalPlayer.Character.Humanoid:EquipTool(tool)
-                end
-                if itemData.Object.Parent == workspace then
-                    itemData.Object:Destroy()
-                end
-            end
-        end)
-        success = successClone
-    else
-        success = pcall(function()
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(itemData.Position + Vector3.new(0, 5, 0))
-                task.wait(0.3)
-            end
-            
-            if itemData.Type == "ProximityPrompt" then
-                local prompt = itemData.Object
-                prompt:InputHoldBegin()
-                task.wait(prompt.HoldDuration or 0.2)
-                prompt:InputHoldEnd()
-            elseif itemData.Type == "ClickDetector" then
-                if fireclickdetector then
-                    fireclickdetector(itemData.Object)
-                end
-            end
-            
-            task.wait(self.Settings.PurchaseDelay)
-        end)
-    end
-    
-    return success
-end
-
-function ItemPurchaser:ScanItems()
-    if tick() - self.LastScan < 3 then return end
-    
-    self.Items = {}
-    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not myHRP then return end
-    
-    local charPos = myHRP.Position
-    
-    local parts = workspace:GetPartBoundsInRadius(charPos, self.Settings.ScanRadius)
-    
-    for _, part in ipairs(parts) do
-        local parent = part.Parent
-        if parent and (parent:IsA("Model") or parent:IsA("BasePart")) then
-            local obj = parent:FindFirstChildWhichIsA("ProximityPrompt") or 
-                       parent:FindFirstChildWhichIsA("ClickDetector") or
-                       (parent:IsA("Tool") and parent)
-            
-            if obj then
-                local isItem, itemName = self:IsPurchaseableItem(obj)
-                if isItem and itemName and not self.Items[obj] then
-                    local dist = (part.Position - charPos).Magnitude
-                    if dist <= self.Settings.ScanRadius then
-                        table.insert(self.Items, {
-                            Object = obj,
-                            Name = itemName,
-                            Type = obj.ClassName,
-                            Distance = dist,
-                            Position = part.Position
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    table.sort(self.Items, function(a,b) return a.Distance < b.Distance end)
-    self.LastScan = tick()
-    self:UpdateDisplay()
-end
-
-function ItemPurchaser:UpdateDisplay()
-    if not self.UI.MainFrame then return end
-    
-    -- ล้างรายการเก่า
-    for _, child in ipairs(self.UI.MainFrame:GetChildren()) do
-        if child:IsA("TextButton") and child.Name ~= "OpenPurchaser" and child.Name ~= "ControlBtn" then
-            child:Destroy()
-        end
-    end
-    
-    if #self.Items == 0 then
-        self.UI.StatusLabel.Text = "ไม่พบไอเท็มในบริเวณ " .. self.Settings.ScanRadius .. " studs"
-        return
-    end
-    
-    -- แสดงเฉพาะ 5 รายการแรก
-    for i = 1, math.min(5, #self.Items) do
-        local item = self.Items[i]
-        local btn = Instance.new("TextButton")
-        btn.Name = "Item_" .. i
-        btn.Size = UDim2.new(1, -10, 0, 32)
-        btn.Position = UDim2.new(0, 5, 0, 32 + (i-1) * 34)
-        btn.BackgroundColor3 = i % 2 == 0 and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(45, 45, 60)
-        btn.Text = string.format(" %s [%.0fm]", item.Name, item.Distance)
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 11
-        btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.Parent = self.UI.MainFrame
-        
-        btn.MouseButton1Click:Connect(function()
-            local success = self:PurchaseItem(item)
-            btn.Text = success and "✓ " .. item.Name or "✗ " .. item.Name
-            btn.BackgroundColor3 = success and Color3.fromRGB(60, 160, 60) or Color3.fromRGB(160, 60, 60)
-            task.wait(0.5)
-            self:ScanItems()
-        end)
-    end
-    
-    self.UI.StatusLabel.Text = string.format("พบ %d รายการ | ลิมิต: %d/%d", 
-        #self.Items, self:GetInventoryCount(), self.Settings.InventoryLimit)
-end
-
-function ItemPurchaser:CreateUI()
-    if self.UI.MainFrame then return end
-    
-    -- สร้าง Frame ใน MainPage
-    self.UI.MainFrame = Instance.new("Frame")
-    self.UI.MainFrame.Name = "PurchaserFrame"
-    self.UI.MainFrame.Size = UDim2.new(1, -30, 0, 220)
-    self.UI.MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-    self.UI.MainFrame.BorderSizePixel = 0
-    self.UI.MainFrame.LayoutOrder = 17 -- ต่อจาก Float
-    self.UI.MainFrame.Parent = MainPage
-    
-    local stroke = Instance.new("UIStroke", self.UI.MainFrame)
-    stroke.Color = Color3.fromRGB(255, 200, 100)
-    stroke.Thickness = 1
-    
-    -- Title
-    local title = Instance.new("TextLabel")
-    title.Name = "PurchaserTitle"
-    title.Size = UDim2.new(1, -20, 0, 26)
-    title.Position = UDim2.new(0, 10, 0, 8)
-    title.BackgroundTransparency = 1
-    title.Text = "🛒 ITEM PURCHASER v3.1"
-    title.TextColor3 = Color3.fromRGB(255, 200, 100)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 15
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = self.UI.MainFrame
-    
-    -- Subtitle
-    local sub = Instance.new("TextLabel")
-    sub.Size = UDim2.new(1, -20, 0, 20)
-    sub.Position = UDim2.new(0, 10, 0, 32)
-    sub.BackgroundTransparency = 1
-    sub.Text = "คลิกซื้อ/หยิบไอเท็มอัตโนมัติ"
-    sub.TextColor3 = Color3.fromRGB(180, 180, 220)
-    sub.Font = Enum.Font.Gotham
-    sub.TextSize = 11
-    sub.TextXAlignment = Enum.TextXAlignment.Left
-    sub.Parent = self.UI.MainFrame
-    
-    -- Control Buttons
-    local controls = Instance.new("Frame")
-    controls.Size = UDim2.new(1, -10, 0, 30)
-    controls.Position = UDim2.new(0, 5, 0, 190)
-    controls.BackgroundTransparency = 1
-    controls.Parent = self.UI.MainFrame
-    
-    local scanBtn = Instance.new("TextButton")
-    scanBtn.Name = "ControlBtn"
-    scanBtn.Size = UDim2.new(0.3, 0, 1, 0)
-    scanBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
-    scanBtn.Text = "SCAN"
-    scanBtn.Font = Enum.Font.GothamBold
-    scanBtn.TextSize = 11
-    scanBtn.Parent = controls
-    
-    self.UI.AmountBox = Instance.new("TextBox")
-    self.UI.AmountBox.Size = UDim2.new(0.25, 0, 1, 0)
-    self.UI.AmountBox.Position = UDim2.new(0.32, 0, 0, 0)
-    self.UI.AmountBox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    self.UI.AmountBox.Text = "1"
-    self.UI.AmountBox.TextColor3 = Color3.new(1, 1, 1)
-    self.UI.AmountBox.Font = Enum.Font.GothamBold
-    self.UI.AmountBox.TextSize = 11
-    self.UI.AmountBox.ClearTextOnFocus = false
-    self.UI.AmountBox.Parent = controls
-    
-    local autoBtn = Instance.new("TextButton")
-    autoBtn.Size = UDim2.new(0.4, 0, 1, 0)
-    autoBtn.Position = UDim2.new(0.6, 0, 0, 0)
-    autoBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
-    autoBtn.Text = "AUTO"
-    autoBtn.Font = Enum.Font.GothamBold
-    autoBtn.TextSize = 11
-    autoBtn.Parent = controls
-    
-    -- Status
-    self.UI.StatusLabel = Instance.new("TextLabel")
-    self.UI.StatusLabel.Size = UDim2.new(1, -10, 0, 25)
-    self.UI.StatusLabel.Position = UDim2.new(0, 5, 1, -25)
-    self.UI.StatusLabel.BackgroundTransparency = 1
-    self.UI.StatusLabel.Text = "พร้อมสแกน..."
-    self.UI.StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
-    self.UI.StatusLabel.Font = Enum.Font.Gotham
-    self.UI.StatusLabel.TextSize = 10
-    self.UI.StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    self.UI.StatusLabel.Parent = self.UI.MainFrame
-    
-    -- Events
-    scanBtn.MouseButton1Click:Connect(function()
-        scanBtn.Text = "Scanning..."
-        self:ScanItems()
-        task.wait(1)
-        scanBtn.Text = "SCAN"
-    end)
-    
-    self.UI.AmountBox.FocusLost:Connect(function()
-        local num = tonumber(self.UI.AmountBox.Text)
-        if num and num >= 1 and num <= 10 then
-            self.Settings.Amount = math.floor(num)
-        end
-        self.UI.AmountBox.Text = tostring(self.Settings.Amount)
-    end)
-    
-    autoBtn.MouseButton1Click:Connect(function()
-        self.Settings.AutoPurchase = not self.Settings.AutoPurchase
-        autoBtn.Text = self.Settings.AutoPurchase and "AUTO: ON" or "AUTO"
-        autoBtn.BackgroundColor3 = self.Settings.AutoPurchase and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(140, 100, 200)
-    end)
-end
-
-function ItemPurchaser:Toggle()
-    self.Enabled = not self.Enabled
-    if not self.UI.MainFrame then
-        self:CreateUI()
-    end
-    
-    if self.Enabled then
-        self:ScanItems()
-        task.spawn(function()
-            while self.Enabled do
-                task.wait(5)
-                self:ScanItems()
-            end
-        end)
-    end
-end
-
--- เพิ่มปุ่ม Toggle ใน Main Page
-local PurchaserToggleBtn = Instance.new("TextButton")
-PurchaserToggleBtn.Name = "OpenPurchaser"
-PurchaserToggleBtn.Size = UDim2.new(1, -30, 0, 36)
-PurchaserToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
-PurchaserToggleBtn.Text = "OPEN ITEM PURCHASER"
-PurchaserToggleBtn.TextColor3 = Color3.new(1, 1, 1)
-PurchaserToggleBtn.Font = Enum.Font.GothamBold
-PurchaserToggleBtn.TextSize = 13
-PurchaserToggleBtn.BorderSizePixel = 0
-PurchaserToggleBtn.LayoutOrder = 17.5 -- ระหว่าง PurchaserFrame กับ Settings
-PurchaserToggleBtn.Parent = MainPage
-
-PurchaserToggleBtn.MouseEnter:Connect(function()
-    TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 180, 80)}):Play()
-end)
-
-PurchaserToggleBtn.MouseLeave:Connect(function()
-    local color = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
-    TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
-end)
-
-PurchaserToggleBtn.MouseButton1Click:Connect(function()
-    ItemPurchaser:Toggle()
-    PurchaserToggleBtn.Text = ItemPurchaser.Enabled and "CLOSE ITEM PURCHASER" or "OPEN ITEM PURCHASER"
-    PurchaserToggleBtn.BackgroundColor3 = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
-    
-    if ItemPurchaser.UI.MainFrame then
-        ItemPurchaser.UI.MainFrame.Visible = ItemPurchaser.Enabled
-    end
-end)
-
-sg.Destroying:Connect(function()
-    ItemPurchaser.Enabled = false
-end)
-
-print("[ItemPurchaser] v3.1 UI ใน Main Tab โหลดเสร็จแล้ว")
-print("[ItemPurchaser] กด 'OPEN ITEM PURCHASER' เพื่อเปิดการใช้งาน")
-
 -- ============================================================
 -- สิ้นสุดส่วน Settings
 -- ============================================================
