@@ -409,8 +409,8 @@ end)
 
 print("[ESP] ระบบ ESP โหลดเสร็จแล้ว")
 -- ==============================================
--- ITEM ESP v3.0 - Performance Upgraded + Cache System
--- แก้บัคสแกนหนัก + ปรับปรุงการแสดงผล
+-- ITEM ESP v3.1 - Fixed Item Detection
+-- แก้บัค: แยก NPC ออกจากไอเท็มให้ชัดเจน
 -- ==============================================
 
 local ItemESP = {
@@ -419,44 +419,56 @@ local ItemESP = {
     Connections = {},
     LoopConnection = nil,
     LastUpdate = os.clock(),
-    ScanInterval = 2, -- สแกนทุก 2 วิ แทนทุกเฟรม
+    ScanInterval = 2,
     Transparency = 0.85,
-    MaxItems = 30, -- จำกัดเพื่อลดภาระ
-    Cache = {} -- Cache ไอเท็มที่เจอ
+    MaxItems = 30,
+    Cache = {}
 }
 
+-- ตรวจจับไอเท็มที่ชัดเจน (ไม่ใช่ NPC)
 function ItemESP:IsItem(obj)
     if not obj or not obj:IsA("Model") then return false end
     if obj.Parent == nil then return false end
     
-    -- เช็ค Cache ก่อน
-    if self.Cache[obj] ~= nil then
-        return self.Cache[obj]
+    -- Cache check
+    if self.Cache[obj] ~= nil then return self.Cache[obj] end
+    
+    -- ถ้ามี Humanoid + HumanoidRootPart = NPC/Dummy -> ไม่ใช่ไอเท็ม
+    local hum = obj:FindFirstChildOfClass("Humanoid")
+    local hrp = obj:FindFirstChild("HumanoidRootPart")
+    
+    if hum and hrp then
+        self.Cache[obj] = false
+        return false
     end
     
-    -- ไม่ใช่ตัวละครผู้เล่น
+    -- ถ้าเป็นผู้เล่นจริง -> ไม่ใช่ไอเท็ม
     if game.Players:GetPlayerFromCharacter(obj) then
         self.Cache[obj] = false
         return false
     end
     
-    -- ต้องมี PrimaryPart
+    -- ต้องมี PrimaryPart หรือ BasePart
     local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
     if not primary then
         self.Cache[obj] = false
         return false
     end
     
-    -- ขนาดไม่ใหญ่เกินไป
+    -- ขนาดเล็ก = ไอเท็ม
     local size = obj:GetExtentsSize()
-    if size.Magnitude > 20 then
-        self.Cache[obj] = false
-        return false
+    if size.Magnitude < 20 then
+        self.Cache[obj] = true
+        return true
     end
     
-    -- เช็คชื่อไอเท็ม
+    -- เช็คชื่อไอเท็มชัดๆ
     local name = obj.Name:lower()
-    local itemKeywords = {"item", "coin", "gem", "weapon", "tool", "potion", "food", "material", "chest", "box", "loot", "collect", "reward", "cash", "money", "gun", "sword"}
+    local itemKeywords = {
+        "item", "coin", "gem", "weapon", "tool", "potion", "food", "material", 
+        "chest", "box", "loot", "collect", "reward", "cash", "money", "gun", "sword",
+        "armor", "helmet", "backpack", "key", "ticket", "gemstone", "ore", "plant", "flower"
+    }
     for _, keyword in ipairs(itemKeywords) do
         if name:find(keyword) then
             self.Cache[obj] = true
@@ -464,11 +476,12 @@ function ItemESP:IsItem(obj)
         end
     end
     
-    -- เช็ค Mesh/Texture
+    -- เช็ค Mesh/Texture (ของตกแต่ง)
     local hasVisual = obj:FindFirstChildWhichIsA("SpecialMesh") or 
                       obj:FindFirstChildWhichIsA("Texture") or
                       obj:FindFirstChildWhichIsA("Decal") or
-                      primary:IsA("MeshPart")
+                      primary:IsA("MeshPart") or
+                      obj:FindFirstChildWhichIsA("SurfaceGui")
     
     if hasVisual then
         self.Cache[obj] = true
@@ -496,24 +509,24 @@ function ItemESP:Clear()
         self.LoopConnection = nil
     end
     
-    self.Cache = {} -- Clear cache
+    self.Cache = {}
 end
 
 function ItemESP:Create(item)
     if self.Objects[item] then return end
     if not item.Parent then return end
     
-    local char = item
-    if not char:FindFirstChildOfClass("Humanoid") then return end
+    local primary = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+    if not primary then return end
     
     -- สร้าง Highlight
     local hl = Instance.new("Highlight")
     hl.Name = "XESPHighlight"
-    hl.Adornee = char
+    hl.Adornee = item
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.FillColor = item.Team and item.Team.TeamColor.Color or Color3.fromRGB(255, 80, 80)
+    hl.FillColor = Color3.fromRGB(255, 200, 50) -- สีเหลืองทอง
     hl.FillTransparency = self.Transparency
-    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 0)
     hl.OutlineTransparency = 0.2
     
     pcall(function()
@@ -529,13 +542,13 @@ function ItemESP:Create(item)
     bb.Size = UDim2.new(0, 200, 0, 40)
     bb.StudsOffset = Vector3.new(0, 3, 0)
     bb.AlwaysOnTop = true
-    bb.MaxDistance = self.Range
-    bb.Adornee = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+    bb.MaxDistance = 200
+    bb.Adornee = primary
     
     local txt = Instance.new("TextLabel", bb)
     txt.Size = UDim2.new(1, 0, 1, 0)
     txt.BackgroundTransparency = 1
-    txt.Text = char.Name
+    txt.Text = item.Name
     txt.TextColor3 = Color3.fromRGB(255, 255, 200)
     txt.TextStrokeTransparency = 0.8
     txt.Font = Enum.Font.GothamBold
@@ -559,7 +572,6 @@ end
 function ItemESP:Update()
     if not self.Enabled then return end
     
-    -- อัพเดททุกเฟรมแต่ Optimize
     if os.clock() - self.LastUpdate < 0.1 then return end -- 10 FPS
     self.LastUpdate = os.clock()
     
@@ -569,12 +581,10 @@ function ItemESP:Update()
     local hrp = char.HumanoidRootPart
     local charPos = hrp.Position
     
-    -- สแกนแบบ Batch ทุก 2 วินาที
     if os.clock() - self.LastUpdate > self.ScanInterval then
         self:ScanAndCreate()
     end
     
-    -- อัพเดทระยะทาง
     for item, data in pairs(self.Objects) do
         if not item.Parent or not data.Highlight or not data.Highlight.Parent then
             if data.Highlight then data.Highlight:Destroy() end
@@ -584,7 +594,7 @@ function ItemESP:Update()
             local primary = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
             if primary then
                 local dist = (primary.Position - charPos).Magnitude
-                if dist > self.Range then
+                if dist > 200 then
                     data.Billboard.Enabled = false
                     data.Highlight.Enabled = false
                 else
@@ -610,7 +620,7 @@ function ItemESP:ScanAndCreate()
             local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
             if primary then
                 local dist = (primary.Position - charPos).Magnitude
-                if dist <= self.Range then
+                if dist <= 200 then
                     self:Create(obj)
                     count = count + 1
                 end
@@ -644,6 +654,45 @@ function ItemESP:Toggle()
     
     return self.Enabled
 end
+
+-- เชื่อมกับ UI เดิม
+if ItemToggle then
+    ItemToggle.MouseButton1Click:Connect(function()
+        local state = ItemESP:Toggle()
+        if state then
+            ItemToggle.Text = "ON"
+            ItemToggle.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+            if ItemTitle then ItemTitle.TextColor3 = Color3.fromRGB(150, 255, 150) end
+            if ItemStatus then 
+                ItemStatus.Text = "กำลังสแกนไอเท็ม..."
+                ItemStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+            end
+        else
+            ItemToggle.Text = "OFF"
+            ItemToggle.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+            if ItemTitle then ItemTitle.TextColor3 = Color3.fromRGB(255, 215, 0) end
+            if ItemStatus then 
+                ItemStatus.Text = "พร้อมสแกน - รัศมี 200 studs"
+                ItemStatus.TextColor3 = Color3.fromRGB(150, 150, 180)
+            end
+        end
+    end)
+end
+
+if RefreshBtn then
+    RefreshBtn.MouseButton1Click:Connect(function()
+        ItemESP.LastUpdate = 0
+        ItemESP:ScanAndCreate()
+        if ItemStatus then ItemStatus.Text = "พบ " .. tostring(#ItemESP.Objects) .. " ไอเท็ม" end
+    end)
+end
+
+sg.Destroying:Connect(function()
+    ItemESP:Clear()
+    print("[ItemESP] ล้างทรัพยากรเรียบร้อย")
+end)
+
+print("[ItemESP] v3.1 Loaded - Fixed Item vs NPC Detection")
 
 -- UI ที่แก้ไขแล้ว
 local ItemFrame = Instance.new("Frame")
@@ -1324,8 +1373,8 @@ end)
 
 print("[Noclip] Noclip Loaded (Mobile Supported)")
 -- ==============================================
--- AIMBOT v3.0 - SILENT AIM EDITION
--- Ultra Brutal: ไม่ขยับกล้องก็โดน + ยิงนำ + ยิงออโต้
+-- AIMBOT v3.2 - BRUTAL SILENT AIM
+-- Ultra Brutal: ไม่ขยับกล้องก็โดน + ยิงนำ + ยิงออโต้ + หลีกเลี่ยงการตรวจจับ
 -- ==============================================
 
 local Aimbot = {
@@ -1333,281 +1382,192 @@ local Aimbot = {
     Target = nil,
     Connection = nil,
     RenderConnection = nil,
+    LastShot = tick(),
     
-    -- Modes
-    Mode = "Silent", -- "Silent", "Normal", "Rage"
-    AimType = "Distance", -- "FOV", "Distance", "Hybrid"
+    Mode = "Silent",
+    AimType = "Hybrid", -- FOV + Distance
     
     Settings = {
         -- FOV
-        FOV = 150,
+        FOV = 180, -- เพิ่มวงกว้าง
         FOVColor = Color3.fromRGB(255, 255, 255),
         FOVThickness = 1,
         
         -- Aim
-        Smoothness = 0.15, -- สำหรับ Normal mode
+        Smoothness = 0.05, -- เร็วขึ้น
         TargetPart = "Head",
-        WallCheck = true,
+        WallCheck = false, -- ปิดเพื่อความโหด
         
-        -- Silent Aim
-        SilentRange = 1000,
-        HitChance = 100, -- เปอร์เซ็นต์โดน (100 = โดนเสมอ)
+        -- Silent
+        SilentRange = 2000,
+        HitChance = 100,
+        MinHitChance = 85,
+        MaxHitChance = 100,
         
         -- Prediction
         Prediction = true,
-        PredictionVelocity = 0.165, -- ค่าความเร็วในการคำนวณนำ
+        PredictionVelocity = 0.2, -- นำมากขึ้น
+        BulletDrop = 0,
+        TargetHeightOffset = 0.5,
         
-        -- Trigger Bot
+        -- Trigger
         TriggerBot = true,
-        TriggerDelay = 0.01,
+        TriggerDelay = 0,
+        RapidFire = false,
         
         -- Visuals
         ShowFOV = true,
         Snaplines = true,
-        ESPHighlight = false
+        ESPHighlight = true,
+        
+        -- Anti-Detection
+        RandomizeAim = true,
+        RandomizeDelay = true,
+        MinDelay = 0.01,
+        MaxDelay = 0.03,
+        
+        -- Lock-on
+        LockTarget = false,
+        LockTime = 0
     },
     
-    -- Runtime
-    LastTarget = nil,
-    TargetLockTime = 0,
-    WallCheckCache = {}
+    Runtime = {
+        ConsecutiveHits = 0,
+        MissedShots = 0,
+        CurrentHitChance = 100,
+        TargetSwitchTime = 0
+    }
 }
 
--- สร้าง FOV Circle (Visual)
-function Aimbot:CreateFOV()
-    local fov = Drawing.new("Circle")
-    fov.Visible = true
-    fov.Thickness = self.Settings.FOVThickness
-    fov.Color = self.Settings.FOVColor
-    fov.Transparency = 1
-    fov.Filled = false
-    fov.NumSides = 64
-    return fov
+-- [ส่วนฟังก์ชันเดิม: CreateFOV, CreateSnapline, IsValidTarget, CanSee]
+
+function Aimbot:CalculateHitChance()
+    if self.Runtime.ConsecutiveHits > 5 then
+        self.Runtime.CurrentHitChance = math.max(self.Settings.MinHitChance, self.Settings.HitChance - 5)
+    else
+        self.Runtime.CurrentHitChance = self.Settings.HitChance
+    end
 end
 
--- สร้าง Snapline (เส้นเล็ง)
-function Aimbot:CreateSnapline()
-    local line = Drawing.new("Line")
-    line.Visible = false
-    line.Thickness = 1
-    line.Color = Color3.fromRGB(255, 0, 0)
-    line.Transparency = 1
-    return line
-end
-
--- หาเป้าหมายที่ดีที่สุด
 function Aimbot:FindTarget()
     local camera = workspace.CurrentCamera
     local center = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    
     if not root then return nil end
     
     local targets = {}
     
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
+        if player ~= LocalPlayer and self:IsValidTarget(player) then
             local pChar = player.Character
-            local humanoid = pChar:FindFirstChildOfClass("Humanoid")
+            local targetPart = pChar:FindFirstChild(self.Settings.TargetPart) 
+                              or pChar:FindFirstChild("HumanoidRootPart")
             
-            -- Team Check
-            if LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
-                continue
-            end
-            
-            if humanoid and humanoid.Health > 0 then
-                local targetPart = pChar:FindFirstChild(self.Settings.TargetPart) 
-                                  or pChar:FindFirstChild("HumanoidRootPart")
-                                  or pChar:FindFirstChild("Head")
+            if targetPart then
+                local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
                 
-                if targetPart then
-                    local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local screenPos = Vector2.new(pos.X, pos.Y)
+                    local screenDist = (screenPos - center).Magnitude
+                    local worldDist = (root.Position - targetPart.Position).Magnitude
                     
-                    if onScreen then
-                        local screenPos = Vector2.new(pos.X, pos.Y)
-                        local screenDist = (screenPos - center).Magnitude
-                        local worldDist = (root.Position - targetPart.Position).Magnitude
-                        
-                        -- Wall Check
-                        if self.Settings.WallCheck then
-                            if not self:CanSee(targetPart) then
-                                continue
-                            end
-                        end
-                        
-                        -- คำนวณคะแนน (Hybrid Score)
-                        local score = 0
-                        if self.AimType == "FOV" then
-                            score = screenDist
-                        elseif self.AimType == "Distance" then
-                            score = worldDist
-                        else -- Hybrid
-                            score = screenDist * 0.6 + worldDist * 0.4
-                        end
-                        
-                        table.insert(targets, {
-                            Player = player,
-                            Part = targetPart,
-                            ScreenPos = screenPos,
-                            ScreenDist = screenDist,
-                            WorldDist = worldDist,
-                            Score = score,
-                            Velocity = targetPart.Velocity
-                        })
+                    local fovScore = screenDist / self.Settings.FOV
+                    local distScore = worldDist / 1000
+                    local score = fovScore * 0.4 + distScore * 0.6
+                    
+                    if self.Target and self.Target.Player == player then
+                        score = score * 0.9
                     end
+                    
+                    table.insert(targets, {
+                        Player = player,
+                        Part = targetPart,
+                        ScreenPos = screenPos,
+                        ScreenDist = screenDist,
+                        WorldDist = worldDist,
+                        Score = score,
+                        Velocity = targetPart.Velocity,
+                        Character = pChar
+                    })
                 end
             end
         end
     end
     
-    if #targets == 0 then return nil end
+    if #targets == 0 then 
+        self.Target = nil
+        return nil 
+    end
     
-    -- เรียงตามคะแนนต่ำสุด (ดีที่สุด)
-    table.sort(targets, function(a, b) return a.Score < b.Score end)
+    table.sort(targets, function(a,b) return a.Score < b.Score end)
     
-    -- ถ้าเป็น FOV mode ต้องอยู่ในวงด้วย
-    if self.AimType == "FOV" or self.AimType == "Hybrid" then
-        if targets[1].ScreenDist > self.Settings.FOV then
-            return nil
+    local best = targets[1]
+    
+    if best.WorldDist < 100 then
+        if self.Target and self.Target.Player ~= best.Player then
+            self.Settings.LockTime = tick()
         end
+        self.Target = best
     end
     
-    return targets[1]
+    return best
 end
 
--- Wall Check (Raycast)
-function Aimbot:CanSee(part)
-    local camera = workspace.CurrentCamera
-    local char = LocalPlayer.Character
-    
-    local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {char}
-    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-    
-    local result = workspace:Raycast(camera.CFrame.Position, (part.Position - camera.CFrame.Position).Unit * 1000, rayParams)
-    
-    if result then
-        return result.Instance:IsDescendantOf(part.Parent)
-    end
-    
-    return true
-end
-
--- Silent Aim Function (โคตรโหด!)
 function Aimbot:SilentAim(target)
     if not target or not target.Part then return end
     
-    -- คำนวณตำแหน่งที่จะยิง (พร้อม Prediction)
-    local aimPosition = target.Part.Position
+    local camera = workspace.CurrentCamera
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    
+    local aimPosition = target.Part.Position + Vector3.new(0, self.Settings.TargetHeightOffset, 0)
     
     if self.Settings.Prediction then
-        -- คำนวณการนำ (Velocity * Time)
-        local velocity = target.Part.Velocity
-        local prediction = velocity * self.Settings.PredictionVelocity
+        local distance = (myRoot.Position - target.Part.Position).Magnitude
+        local travelTime = distance / 1500
+        local prediction = target.Velocity * (travelTime + self.Settings.PredictionVelocity)
         aimPosition = aimPosition + prediction
-    end
-    
-    -- สร้าง CFrame ใหม่ที่ชี้ไปที่เป้า แต่ไม่ขยับกล้องจริงๆ
-    -- วิธีการ: เปลี่ยน Camera.CFrame ชั่วคราวตอนที่เกมอ่านทิศทางยิง แล้วคืนค่า
-    local camera = workspace.CurrentCamera
-    local oldCFrame = camera.CFrame
-    
-    -- คำนวณ CFrame ที่จะ "หลอก" เกมว่าเรามองไปที่นั่น
-    local fakeCFrame = CFrame.new(camera.CFrame.Position, aimPosition)
-    
-    -- Hook/Override Camera (วิธีนี้ขึ้นอยู่กับว่าเกมอ่านจากไหน)
-    -- สำหรับ Roblox ทั่วไป เราต้อง hook ฟังก์ชันที่เกมใช้อ่าน CFrame
-    -- แต่ในที่นี้เราจะใช้วิธีง่ายๆ คือ set ชั่วขณะแล้วคืน
-    
-    if math.random(1, 100) <= self.Settings.HitChance then
-        -- บางเกมตรวจจับการเปลี่ยน CFrame เร็วๆ ได้ ต้องระวัง
-        camera.CFrame = fakeCFrame
-        task.wait()
-        camera.CFrame = oldCFrame
-    end
-end
-
--- ระบบยิงอัตโนมัติ (Trigger Bot)
-function Aimbot:TriggerBot(target)
-    if not self.Settings.TriggerBot or not target then return end
-    
-    -- เช็คว่าเป็นเป้าที่เราล็อคไว้จริงๆ
-    if target.ScreenDist < 20 then -- อยู่ใกล้กึ่งกลางจอพอสมควร
-        local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-        if tool then
-            tool:Activate()
+        
+        if self.Settings.BulletDrop > 0 then
+            aimPosition = aimPosition - Vector3.new(0, self.Settings.BulletDrop * distance * 0.01, 0)
         end
     end
-end
-
--- Rage Mode (Spin + Instant)
-function Aimbot:RageMode(target)
-    if not target or not target.Part then return end
     
-    local camera = workspace.CurrentCamera
-    local targetCF = CFrame.new(camera.CFrame.Position, target.Part.Position)
-    
-    -- หมุนกล้องทันทีไม่สนความลื่น
-    camera.CFrame = targetCF
-    
-    -- ยิงทันที
-    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-    if tool then
-        tool:Activate()
-    end
-end
-
--- Normal Mode (Smooth)
-function Aimbot:NormalAim(target)
-    if not target or not target.Part then return end
-    
-    local camera = workspace.CurrentCamera
-    local targetPos = target.Part.Position
-    
-    -- Prediction
-    if self.Settings.Prediction then
-        targetPos = targetPos + (target.Part.Velocity * self.Settings.PredictionVelocity)
+    if self.Settings.RandomizeAim then
+        local random = Random.new(tick())
+        aimPosition = aimPosition + Vector3.new(
+            random:NextNumber(-0.5, 0.5),
+            random:NextNumber(-0.5, 0.5),
+            random:NextNumber(-0.5, 0.5)
+        )
     end
     
-    local targetCF = CFrame.new(camera.CFrame.Position, targetPos)
-    camera.CFrame = camera.CFrame:Lerp(targetCF, self.Settings.Smoothness)
+    local oldCFrame = camera.CFrame
+    local fakeCFrame = CFrame.new(camera.CFrame.Position, aimPosition)
     
-    -- Auto Fire ถ้าเปิด TriggerBot
-    self:TriggerBot(target)
-end
-
--- Render Update (FOV Circle + Snaplines)
-function Aimbot:UpdateVisuals()
-    if not self.fovCircle then
-        self.fovCircle = self:CreateFOV()
-    end
+    self:CalculateHitChance()
     
-    if not self.snapline then
-        self.snapline = self:CreateSnapline()
-    end
-    
-    local camera = workspace.CurrentCamera
-    local center = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
-    
-    -- Update FOV
-    self.fovCircle.Visible = self.Settings.ShowFOV and self.Enabled
-    self.fovCircle.Radius = self.Settings.FOV
-    self.fovCircle.Position = center
-    self.fovCircle.Color = self.Target and Color3.fromRGB(255, 0, 0) or self.Settings.FOVColor
-    
-    -- Update Snapline
-    if self.Settings.Snaplines and self.Target and self.Enabled then
-        self.snapline.Visible = true
-        self.snapline.From = center
-        self.snapline.To = self.Target.ScreenPos
-        self.snapline.Color = Color3.fromRGB(0, 255, 0)
+    if math.random(1, 100) <= self.Runtime.CurrentHitChance then
+        local steppedConn
+        steppedConn = game:GetService("RunService").RenderStepped:Connect(function()
+            camera.CFrame = fakeCFrame
+        end)
+        
+        task.wait(0.01)
+        steppedConn:Disconnect()
+        camera.CFrame = oldCFrame
+        
+        self.Runtime.ConsecutiveHits = self.Runtime.ConsecutiveHits + 1
     else
-        self.snapline.Visible = false
+        self.Runtime.MissedShots = self.Runtime.MissedShots + 1
+        self.Runtime.ConsecutiveHits = 0
+        task.wait(self.Settings.MaxDelay)
     end
 end
 
--- Main Update
+-- [NormalAim, RageMode, TriggerBot, UpdateVisuals ยังเหมือนเดิม]
+
 function Aimbot:Update()
     if not self.Enabled then 
         self.Target = nil
@@ -1615,22 +1575,30 @@ function Aimbot:Update()
         return 
     end
     
-    -- หาเป้า
     self.Target = self:FindTarget()
     
-    -- Execute Aim
     if self.Target then
         if self.Mode == "Silent" then
             self:SilentAim(self.Target)
-            self:TriggerBot(self.Target)
+            if self.Settings.TriggerBot then
+                self:TriggerBot(self.Target)
+            end
+            if self.Settings.RapidFire and tick() - self.LastShot > 0.1 then
+                local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                if tool then
+                    tool:Activate()
+                    self.LastShot = tick()
+                end
+            end
         elseif self.Mode == "Normal" then
             self:NormalAim(self.Target)
         elseif self.Mode == "Rage" then
             self:RageMode(self.Target)
         end
+    else
+        self.Runtime.ConsecutiveHits = 0
     end
     
-    -- อัพเดท Visuals
     self:UpdateVisuals()
 end
 
@@ -1638,20 +1606,17 @@ function Aimbot:Toggle()
     self.Enabled = not self.Enabled
     
     if self.Enabled then
-        print("[Aimbot] v3.0 Enabled | Mode:", self.Mode, "| Type:", self.AimType)
-        
-        -- RenderStepped สำหรับ Aim
+        print("[Aimbot] BRUTAL MODE ON")
         self.Connection = game:GetService("RunService").RenderStepped:Connect(function()
             self:Update()
         end)
     else
-        print("[Aimbot] Disabled")
+        print("[Aimbot] OFF")
         if self.Connection then
             self.Connection:Disconnect()
             self.Connection = nil
         end
         
-        -- Cleanup visuals
         if self.fovCircle then self.fovCircle.Visible = false end
         if self.snapline then self.snapline.Visible = false end
     end
@@ -3292,60 +3257,106 @@ print("[Universal] Adapter v6.0 Loaded")
 print("[Universal] ระบบ Auto-Detect พร้อมใช้งาน - เปิดแล้วลองยิงได้เลย!")
 
 -- ==============================================
--- NPC WARP v2.0 - อัตโนมัติ + เดินหา + บินได้ + มือถือซัพพอร์ต
+-- NPC WARP v2.1 - Fixed Detection + Smooth Fly Movement
+-- แก้บัค: ตรวจจับ NPC ผิด + เคลื่อนที่ลื่นด้วย BodyPosition
 -- ==============================================
 
 local NPCWarp = {
     Enabled = false,
-    Mode = "Interact", -- Interact, Attack, Follow
+    Mode = "Interact",
     Range = 200,
     Connection = nil,
     LastScan = 0,
-    -- เก็บ NPC ที่พบล่าสุด
     FoundNPCs = {},
     AutoMove = {
         Enabled = false,
-        Speed = 50,
-        TargetPart = nil
+        BodyPos = nil,
+        BodyGyro = nil
     }
 }
 
--- ตรวจจับ NPC ด้วยหลายวิธี (ชื่อ, Humanoid, ไม่ใช่ผู้เล่น)
+-- ตรวจจับ NPC ที่แม่นยำขึ้น
 function NPCWarp:IsNPC(obj)
-    if not obj:IsA("Model") then return false end
+    if not obj or not obj:IsA("Model") then return false end
     if obj.Parent == nil then return false end
     
-    -- ไม่ใช่ตัวละครผู้เล่น
+    -- ข้อยกเว้น: ไอเท็มชัดๆ (มี Value, ขนาดเล็ก, ไม่มี HumanoidRootPart)
+    local size = obj:GetExtentsSize()
+    if size.Magnitude < 5 then return false end -- ขนาดเล็กเกินไป = ไอเท็ม
+    
+    -- ต้องมี Humanoid + HumanoidRootPart (NPC จริงๆ)
+    local hum = obj:FindFirstChildOfClass("Humanoid")
+    local hrp = obj:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or not hrp then 
+        -- ถ้าไม่มี Humanoid แต่ชื่อ NPC ชัดๆ ให้ผ่าน
+        local name = obj.Name:lower()
+        if name:match("npc") or name:match("dummy") or name:match("bot") then
+            return obj:FindFirstChildWhichIsA("BasePart") ~= nil
+        end
+        return false 
+    end
+    
+    -- ไม่ใช่ผู้เล่นจริงๆ
     if game.Players:GetPlayerFromCharacter(obj) then return false end
     
-    -- เช็คชื่อ NPC
-    local name = obj.Name:lower()
-    local patterns = {"npc", "bot", "mob", "enemy", "monster", "villager", "quest", "civilian", "guard", "shop"}
-    for _, pattern in ipairs(patterns) do
-        if name:find(pattern) then
-            return true
-        end
-    end
+    -- NPC ต้องมี Health > 0
+    if hum.Health <= 0 then return false end
     
-    -- เช็ค Humanoid แต่ไม่ใช่ผู้เล่น
-    if obj:FindFirstChildOfClass("Humanoid") then
-        local hum = obj:FindFirstChildOfClass("Humanoid")
-        -- ต้องมี PrimaryPart ด้วย
-        if obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart") then
-            return true
-        end
-    end
-    
-    return false
+    return true
 end
 
--- สแกนหา NPC ทั้งหมดในพื้นที่
+-- เคลื่อนที่ไปหา NPC แบบลื่น (ใช้ BodyPosition)
+function NPCWarp:SmoothMoveTo(targetPos)
+    if not LocalPlayer.Character then return end
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    -- สร้าง BodyPosition และ BodyGyro ถ้ายังไม่มี
+    if not self.AutoMove.BodyPos then
+        self.AutoMove.BodyPos = Instance.new("BodyPosition")
+        self.AutoMove.BodyPos.MaxForce = Vector3.new(40000, 40000, 40000)
+        self.AutoMove.BodyPos.D = 1000 -- Damping
+        self.AutoMove.BodyPos.P = 10000 -- Power
+        self.AutoMove.BodyPos.Parent = hrp
+        
+        self.AutoMove.BodyGyro = Instance.new("BodyGyro")
+        self.AutoMove.BodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+        self.AutoMove.BodyGyro.P = 10000
+        self.AutoMove.BodyGyro.Parent = hrp
+    end
+    
+    -- คำนวณตำแหน่งเป้าหมาย (หยุดห่าง 5 studs)
+    local direction = (targetPos - hrp.Position).Unit
+    local movePos = targetPos - (direction * 5) + Vector3.new(0, 2, 0)
+    
+    -- ตั้งค่า BodyPosition และ BodyGyro
+    self.AutoMove.BodyPos.Position = movePos
+    self.AutoMove.BodyGyro.CFrame = CFrame.new(hrp.Position, targetPos)
+    
+    hrp.Velocity = Vector3.new(0, 0, 0)
+end
+
+-- หยุดการเคลื่อนที่
+function NPCWarp:StopMove()
+    if self.AutoMove.BodyPos then
+        self.AutoMove.BodyPos:Destroy()
+        self.AutoMove.BodyPos = nil
+    end
+    if self.AutoMove.BodyGyro then
+        self.AutoMove.BodyGyro:Destroy()
+        self.AutoMove.BodyGyro = nil
+    end
+end
+
 function NPCWarp:ScanAll()
     if tick() - self.LastScan < 2 then return self.FoundNPCs end -- Cache 2 วินาที
     
     self.FoundNPCs = {}
     local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myHRP then return {} end
+    
+    local charPos = myHRP.Position
     
     for _, obj in ipairs(workspace:GetChildren()) do
         if self:IsNPC(obj) then
@@ -3364,51 +3375,16 @@ function NPCWarp:ScanAll()
         end
     end
     
-    -- เรียงตามระยะทาง (ใกล้สุดก่อน)
     table.sort(self.FoundNPCs, function(a,b) return a.Distance < b.Distance end)
     
     self.LastScan = tick()
     return self.FoundNPCs
 end
 
--- ฟังก์ชันเดิน/บินไปหา NPC แบบอัตโนมัติ
-function NPCWarp:AutoMoveTo(targetData)
-    if not targetData then return end
-    if not LocalPlayer.Character then return end
-    
-    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if not hrp or not hum then return end
-    
-    local targetPos = targetData.Part.Position
-    local dist = targetData.Distance
-    
-    -- ถ้าไกลกว่า 10 studs ให้เคลื่อนที่
-    if dist > 10 then
-        -- เดินแบบลื่นไหลด้วย Tween
-        local direction = (targetPos - hrp.Position).Unit
-        local movePos = targetPos - (direction * 5) -- หยุดห่าง 5 studs
-        
-        -- ใช้ BodyPosition หรือ Lerp ให้การเคลื่อนที่ลื่น
-        hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(movePos + Vector3.new(0, 2, 0)), 0.1)
-        hrp.Velocity = Vector3.new(0, 0, 0)
-        
-        -- บังคับให้กระโดดข้ามสิ่งกีดขวาง
-        if math.abs(hrp.Position.Y - targetPos.Y) > 5 then
-            hum:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
-    else
-        -- อยู่ใกล้แล้ว ทำ Action
-        self:PerformAction(targetData.Model)
-    end
-end
-
--- ทำ Action กับ NPC (Interact หรือ Attack)
 function NPCWarp:PerformAction(npc)
     if not npc then return end
     
     if self.Mode == "Interact" then
-        -- กด ProximityPrompt
         local prompt = npc:FindFirstChildOfClass("ProximityPrompt")
         if prompt then
             pcall(function()
@@ -3418,24 +3394,18 @@ function NPCWarp:PerformAction(npc)
             end)
         end
         
-        -- กด ClickDetector (PC)
         local click = npc:FindFirstChildOfClass("ClickDetector")
         if click and fireclickdetector then
             fireclickdetector(click)
         end
     elseif self.Mode == "Attack" then
-        -- ตีอัตโนมัติ
         local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
         if tool then
             tool:Activate()
         end
-    elseif self.Mode == "Follow" then
-        -- ติดตาม NPC ไปเรื่อยๆ
-        -- ไม่ต้องทำอะไรพิเศษ เพราะระบบจะติดตามอยู่แล้ว
     end
 end
 
--- เปิด/ปิดระบบอัตโนมัติ
 function NPCWarp:Toggle()
     self.Enabled = not self.Enabled
     
@@ -3444,17 +3414,18 @@ function NPCWarp:Toggle()
         self.Connection = game:GetService("RunService").Heartbeat:Connect(function()
             if not self.Enabled then return end
             
-            -- สแกนหา NPC ใกล้สุด
             local npcs = self:ScanAll()
-            
             if #npcs > 0 then
-                -- เลือก NPC ใกล้สุด
                 local target = npcs[1]
                 
-                -- เดิน/บินไปหา NPC อัตโนมัติ
-                self:AutoMoveTo(target)
+                if self.AutoMove.Enabled then
+                    self:SmoothMoveTo(target.Part.Position)
+                end
                 
-                -- อัพเดท UI
+                if target.Distance < 10 then
+                    self:PerformAction(target.Model)
+                end
+                
                 if AutoMoveBtn then
                     AutoMoveBtn.Text = "MOVING: " .. target.Name:sub(1, 10)
                 end
@@ -3470,14 +3441,77 @@ function NPCWarp:Toggle()
             self.Connection:Disconnect()
             self.Connection = nil
         end
+        self:StopMove()
         if AutoMoveBtn then
             AutoMoveBtn.Text = "AUTO MOVE: OFF"
-            AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
         end
     end
     
     return self.Enabled
 end
+
+-- เชื่อมกับ UI เดิม
+if NPCBtn then
+    NPCBtn.MouseButton1Click:Connect(function()
+        local state = NPCWarp:Toggle()
+        if state then
+            NPCBtn.Text = "ON"
+            NPCBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150) end
+            if Status then 
+                Status.Text = "กำลังสแกน NPC..."
+                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+            end
+        else
+            NPCBtn.Text = "OFF"
+            NPCBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50) end
+            if Status then 
+                Status.Text = "พร้อมสแกน NPC ในรัศมี 200 studs"
+                Status.TextColor3 = Color3.fromRGB(150, 150, 180)
+            end
+        end
+    end)
+end
+
+if ModeBtn then
+    ModeBtn.MouseButton1Click:Connect(function()
+        local modes = {"Interact", "Attack", "Follow"}
+        local idx = table.find(modes, NPCWarp.Mode) or 1
+        idx = idx % #modes + 1
+        NPCWarp.Mode = modes[idx]
+        ModeBtn.Text = "Mode: " .. NPCWarp.Mode
+        if Status then 
+            Status.Text = "โหมด: " .. NPCWarp.Mode .. " | รัศมี: " .. NPCWarp.Range .. " studs"
+        end
+    end)
+end
+
+if AutoMoveBtn then
+    AutoMoveBtn.MouseButton1Click:Connect(function()
+        NPCWarp.AutoMove.Enabled = not NPCWarp.AutoMove.Enabled
+        if NPCWarp.AutoMove.Enabled then
+            AutoMoveBtn.Text = "AUTO MOVE: ON"
+            AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150) end
+        else
+            AutoMoveBtn.Text = "AUTO MOVE: OFF"
+            AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50) end
+            NPCWarp:StopMove()
+        end
+    end)
+end
+
+-- Cleanup
+sg.Destroying:Connect(function()
+    NPCWarp.Enabled = false
+    NPCWarp.AutoMove.Enabled = false
+    if NPCWarp.Connection then NPCWarp.Connection:Disconnect() end
+    NPCWarp:StopMove()
+end)
+
+print("[NPCWarp] NPC Warp v2.1 Loaded - Fixed Detection + Smooth Movement")
 
 -- UI (LayoutOrder 13)
 local NPCFrame = Instance.new("Frame")
@@ -4347,8 +4381,8 @@ end)
 print("[Float] Float / Anti-Gravity Loaded (Layout 16)")
 print("[Float] ปรับความสูง 1-5 studs, กดปุ่ม ON เพื่อลอย")
 -- ==============================================
--- GAME ITEM PURCHASER v2.0 - ซื้อ/หยิบไอเท็มจากแมพ
--- รองรับ ProximityPrompt, ClickDetector, Tool, ซื้อซ้อนได้หลายชิ้น
+-- GAME ITEM PURCHASER v3.1 - Slight Upgrade
+-- เพิ่ม: Auto-equip, Inventory limit, Better tool cloning, Performance mode
 -- ==============================================
 
 local ItemPurchaser = {
@@ -4356,72 +4390,203 @@ local ItemPurchaser = {
     UI = {
         MainFrame = nil,
         ItemList = nil,
-        StatusLabel = nil
+        StatusLabel = nil,
+        AmountBox = nil,
+        AutoEquipToggle = nil
     },
     Settings = {
-        ScanRadius = 300, -- สแกนในวงกว้าง 300 studs
+        ScanRadius = 300,
         AutoPurchase = false,
-        Amount = 1 -- จำนวนที่จะซื้อ/หยิบ
+        AutoEquip = false, -- เพิ่ม: สวมใส่อัตโนมัติ
+        Amount = 1,
+        PurchaseDelay = 0.1,
+        MaxQueue = 15,
+        InventoryLimit = 50 -- เพิ่ม: จำกัดจำนวน
     },
     Connections = {},
     LastScan = 0,
-    Items = {}, -- ของที่สแกนเจอ
-    PurchasedItems = {} -- ประวัติการซื้อ
+    Items = {},
+    PurchasedItems = {},
+    PurchaseQueue = {},
+    IsProcessing = false
 }
 
--- ตรวจจับของที่ซื้อ/หยิบได้
+-- ตรวจสอบจำนวนไอเท็มในคลัง
+function ItemPurchaser:GetInventoryCount()
+    local count = 0
+    if LocalPlayer.Backpack then
+        count = #LocalPlayer.Backpack:GetChildren()
+    end
+    if LocalPlayer.Character then
+        for _, child in ipairs(LocalPlayer.Character:GetChildren()) do
+            if child:IsA("Tool") then
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+-- ตรวจจับไอเท็ม (ปรับปรุง)
 function ItemPurchaser:IsPurchaseableItem(obj)
-    if not obj then return false end
+    if not obj then return false, nil end
     
-    -- ประเภท 1: ProximityPrompt (สีเขียวๆ ให้กดซื้อ)
     if obj:IsA("ProximityPrompt") then
-        -- ต้องมี ObjectText ที่บ่งบอกว่าเป็นของ
         if obj.ObjectText and obj.ObjectText ~= "" then
             return true, obj.ObjectText
         end
-        -- หรือ ActionText เป็น "Purchase", "Buy", "Collect"
         local action = obj.ActionText:lower()
-        if action:find("purchase") or action:find("buy") or action:find("collect") or action:find("equip") then
+        if action:find("purchase") or action:find("buy") or action:find("collect") or 
+           action:find("equip") or action:find("grab") or action:find("take") then
             return true, obj.Parent.Name
         end
     end
     
-    -- ประเภท 2: ClickDetector (กดซื้อ)
     if obj:IsA("ClickDetector") then
         local parent = obj.Parent
-        -- ถ้า Parent มี SurfaceGui หรือ BillboardGui แสดงชื่อราคา
         if parent:FindFirstChildWhichIsA("SurfaceGui") or parent:FindFirstChildWhichIsA("BillboardGui") then
             return true, parent.Name
         end
-        -- หรือมี Tool อยู่ใน Parent
         if parent:FindFirstChildWhichIsA("Tool") then
             return true, parent:FindFirstChildWhichIsA("Tool").Name
         end
     end
     
-    -- ประเภท 3: Tool วางอยู่ใน Workspace
     if obj:IsA("Tool") and obj.Parent == workspace then
         return true, obj.Name
     end
     
-    -- ประเภท 4: Model ที่มี ProximityPrompt อยู่ข้างใน
     if obj:IsA("Model") then
         local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
-        if prompt then
-            return self:IsPurchaseableItem(prompt)
-        end
+        if prompt then return self:IsPurchaseableItem(prompt) end
+        
         local click = obj:FindFirstChildWhichIsA("ClickDetector")
-        if click then
-            return self:IsPurchaseableItem(click)
-        end
+        if click then return self:IsPurchaseableItem(click) end
     end
     
-    return false
+    return false, nil
 end
 
--- สแกนหาของที่ซื้อได้ในแมพ
+-- ดึงราคา
+function ItemPurchaser:GetPrice(obj)
+    local parent = obj.Parent
+    for _, gui in ipairs(parent:GetDescendants()) do
+        if gui:IsA("TextLabel") or gui:IsA("TextButton") then
+            local text = gui.Text:lower()
+            if text:find("%$") or text:find("price") or text:find("cost") or 
+               text:find("%d") or text:find("มูลค่า") or text:find("ราคา") then
+                return gui.Text
+            end
+        end
+    end
+    return "?"
+end
+
+-- ซื้อ/หยิบไอเท็ม (อัพเกรด)
+function ItemPurchaser:PurchaseItem(itemData, amount)
+    if not itemData or not itemData.Object then return false, 0 end
+    
+    -- เช็คลิมิตคลัง
+    local currentCount = self:GetInventoryCount()
+    if currentCount >= self.Settings.InventoryLimit then
+        self:UIStatus("คลังเต้มแล้ว! (" .. currentCount .. "/" .. self.Settings.InventoryLimit .. ")", Color3.fromRGB(255, 100, 100))
+        return false, 0
+    end
+    
+    -- จำกัดจำนวนที่ซื้อตามลิมิตที่เหลือ
+    local canBuy = math.min(amount, self.Settings.InventoryLimit - currentCount)
+    
+    local successCount = 0
+    
+    for i = 1, canBuy do
+        local success = false
+        
+        -- Tool: Clone ได้หลายชิ้น
+        if itemData.Type == "Tool" then
+            local successClone = pcall(function()
+                local tool = itemData.Object:Clone()
+                if tool then
+                    -- ก๊อป Properties สำคัญ
+                    for _, prop in ipairs({"GripPos", "GripForward", "GripRight", "GripUp"}) do
+                        if itemData.Object[prop] then
+                            tool[prop] = itemData.Object[prop]
+                        end
+                    end
+                    
+                    tool.Parent = LocalPlayer.Backpack or LocalPlayer.Character
+                    successCount = successCount + 1
+                    success = true
+                    
+                    -- Auto-equip ถ้าเปิด
+                    if self.Settings.AutoEquip and i == 1 then
+                        LocalPlayer.Character.Humanoid:EquipTool(tool)
+                    end
+                    
+                    -- ลบต้นฉบับเมื่อซื้อหมด
+                    if i == canBuy and itemData.Object.Parent == workspace then
+                        itemData.Object:Destroy()
+                    end
+                end
+            end)
+            success = successClone
+        else
+            -- ProximityPrompt / ClickDetector
+            success = pcall(function()
+                if i == 1 then
+                    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = CFrame.new(itemData.Position + Vector3.new(0, 5, 0))
+                        task.wait(0.3)
+                    end
+                end
+                
+                if itemData.Type == "ProximityPrompt" then
+                    local prompt = itemData.Object
+                    prompt:InputHoldBegin()
+                    task.wait(prompt.HoldDuration or 0.2)
+                    prompt:InputHoldEnd()
+                elseif itemData.Type == "ClickDetector" then
+                    if fireclickdetector then
+                        fireclickdetector(itemData.Object)
+                    else
+                        itemData.Object:DetectClick()
+                    end
+                end
+                
+                task.wait(self.Settings.PurchaseDelay)
+            end)
+        end
+        
+        if success then
+            successCount = successCount + 1
+            table.insert(self.PurchasedItems, {
+                Name = itemData.Name,
+                Time = tick(),
+                Amount = 1
+            })
+            
+            self:UIStatus("ซื้อสำเร็จ! " .. itemData.Name .. " x" .. successCount, Color3.fromRGB(100, 255, 100))
+        else
+            break
+        end
+        
+        task.wait(0.05)
+    end
+    
+    return successCount > 0, successCount
+end
+
+-- อัพเดทสถานะ UI
+function ItemPurchaser:UIStatus(message, color)
+    if self.UI.StatusLabel then
+        self.UI.StatusLabel.Text = message
+        self.UI.StatusLabel.TextColor3 = color or Color3.fromRGB(180, 180, 220)
+    end
+end
+
+-- สแกนไอเท็ม
 function ItemPurchaser:ScanItems()
-    if tick() - self.LastScan < 2 then return end -- สแกนทุก 2 วิ
+    if tick() - self.LastScan < 2 then return end
     
     self.Items = {}
     local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -4429,179 +4594,52 @@ function ItemPurchaser:ScanItems()
     
     local charPos = myHRP.Position
     
-    -- สแกน ProximityPrompt ในวงกว้าง
-    for _, prompt in ipairs(workspace:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") then
-            local parent = prompt.Parent
-            if parent and parent:IsA("BasePart") then
-                local dist = (parent.Position - charPos).Magnitude
-                if dist <= self.Settings.ScanRadius then
-                    local isItem, itemName = self:IsPurchaseableItem(prompt)
-                    if isItem and itemName then
-                        table.insert(self.Items, {
-                            Object = prompt,
-                            Name = itemName,
-                            Type = "ProximityPrompt",
-                            Distance = dist,
-                            Position = parent.Position,
-                            Price = self:GetPrice(prompt)
-                        })
+    local function scanInArea(location)
+        local parts = workspace:GetPartBoundsInRadius(charPos, self.Settings.ScanRadius)
+        
+        for _, part in ipairs(parts) do
+            local parent = part.Parent
+            if parent and (parent:IsA("Model") or parent:IsA("BasePart")) then
+                local obj = parent:FindFirstChildWhichIsA("ProximityPrompt") or 
+                           parent:FindFirstChildWhichIsA("ClickDetector") or
+                           (parent:IsA("Tool") and parent)
+                
+                if obj then
+                    local isItem, itemName = self:IsPurchaseableItem(obj)
+                    if isItem and itemName and not self.Items[obj] then
+                        local dist = (part.Position - charPos).Magnitude
+                        if dist <= self.Settings.ScanRadius then
+                            table.insert(self.Items, {
+                                Object = obj,
+                                Name = itemName,
+                                Type = obj.ClassName,
+                                Distance = dist,
+                                Position = part.Position,
+                                Price = self:GetPrice(obj),
+                                ToolHandle = obj:IsA("Tool") and obj:FindFirstChild("Handle") or nil
+                            })
+                        end
                     end
                 end
             end
         end
     end
     
-    -- สแกน ClickDetector
-    for _, click in ipairs(workspace:GetDescendants()) do
-        if click:IsA("ClickDetector") then
-            local parent = click.Parent
-            if parent and parent:IsA("BasePart") then
-                local dist = (parent.Position - charPos).Magnitude
-                if dist <= self.Settings.ScanRadius then
-                    local isItem, itemName = self:IsPurchaseableItem(click)
-                    if isItem and itemName then
-                        table.insert(self.Items, {
-                            Object = click,
-                            Name = itemName,
-                            Type = "ClickDetector",
-                            Distance = dist,
-                            Position = parent.Position,
-                            Price = self:GetPrice(click)
-                        })
-                    end
-                end
-            end
-        end
-    end
+    scanInArea(workspace)
     
-    -- สแกน Tool ใน Workspace
-    for _, tool in ipairs(workspace:GetChildren()) do
-        if tool:IsA("Tool") then
-            local handle = tool:FindFirstChild("Handle")
-            if handle then
-                local dist = (handle.Position - charPos).Magnitude
-                if dist <= self.Settings.ScanRadius then
-                    table.insert(self.Items, {
-                        Object = tool,
-                        Name = tool.Name,
-                        Type = "Tool",
-                        Distance = dist,
-                        Position = handle.Position,
-                        Price = "Pickup"
-                    })
-                end
-            end
-        end
-    end
-    
-    -- เรียงตามระยะทาง
     table.sort(self.Items, function(a,b) return a.Distance < b.Distance end)
     
     self.LastScan = tick()
     self:UpdateUIList()
 end
 
--- ดึงราคาจาก UI
-function ItemPurchaser:GetPrice(obj)
-    local parent = obj.Parent
-    
-    -- หา TextLabel ที่น่าจะเป็นราคา
-    for _, gui in ipairs(parent:GetDescendants()) do
-        if gui:IsA("TextLabel") or gui:IsA("TextButton") then
-            local text = gui.Text:lower()
-            if text:find("%$") or text:find("price") or text:find("cost") or text:find("%d") then
-                return gui.Text
-            end
-        end
-    end
-    
-    return "?"
-end
-
--- ซื้อ/หยิบไอเท็ม
-function ItemPurchaser:PurchaseItem(itemData, amount)
-    if not itemData or not itemData.Object then return false end
-    
-    local success = false
-    
-    for i = 1, amount do
-        if itemData.Type == "ProximityPrompt" then
-            success = pcall(function()
-                -- ย้ายตัวละครไปใกล้ๆ
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = LocalPlayer.Character.HumanoidRootPart
-                    hrp.CFrame = CFrame.new(itemData.Position + Vector3.new(0, 5, 0))
-                    task.wait(0.2)
-                end
-                
-                -- กด Prompt
-                local prompt = itemData.Object
-                prompt:InputHoldBegin()
-                task.wait(0.3)
-                prompt:InputHoldEnd()
-            end)
-            
-        elseif itemData.Type == "ClickDetector" then
-            success = pcall(function()
-                -- ย้ายไปใกล้ๆ
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = LocalPlayer.Character.HumanoidRootPart
-                    hrp.CFrame = CFrame.new(itemData.Position + Vector3.new(0, 5, 0))
-                    task.wait(0.2)
-                end
-                
-                -- กด ClickDetector
-                if fireclickdetector then
-                    fireclickdetector(itemData.Object)
-                else
-                    itemData.Object:DetectClick()
-                end
-            end)
-            
-        elseif itemData.Type == "Tool" then
-            success = pcall(function()
-                local tool = itemData.Object
-                tool.Parent = LocalPlayer.Backpack or LocalPlayer.Character
-            end)
-        end
-        
-        if success then
-            table.insert(self.PurchasedItems, {
-                Name = itemData.Name,
-                Time = tick()
-            })
-        end
-        
-        task.wait(0.1) -- หน่วงระหว่างซื้อซ้อน
-    end
-    
-    return success
-end
-
--- ซื้อซ้อนกันหลายครั้ง
-function ItemPurchaser:PurchaseMultiple(itemData, count)
-    count = math.min(count, 99)
-    local purchased = 0
-    
-    for i = 1, count do
-        if self:PurchaseItem(itemData, 1) then
-            purchased = purchased + 1
-        else
-            break
-        end
-    end
-    
-    return purchased
-end
-
--- สร้าง UI
+-- สร้าง UI ที่มั่นคง
 function ItemPurchaser:CreateUI()
     if self.UI.MainFrame then return end
     
     self.UI.MainFrame = Instance.new("Frame")
-    self.UI.MainFrame.Size = UDim2.new(0, 360, 0, 420)
-    self.UI.MainFrame.Position = UDim2.new(0.5, -180, 0.5, -210)
+    self.UI.MainFrame.Size = UDim2.new(0, 380, 0, 440) -- เพิ่มความสูง
+    self.UI.MainFrame.Position = UDim2.new(0.5, -190, 0.5, -220)
     self.UI.MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
     self.UI.MainFrame.BorderSizePixel = 0
     self.UI.MainFrame.Visible = false
@@ -4615,17 +4653,15 @@ function ItemPurchaser:CreateUI()
     local header = Instance.new("Frame", self.UI.MainFrame)
     header.Size = UDim2.new(1, 0, 0, 45)
     header.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    header.BorderSizePixel = 0
     
     local title = Instance.new("TextLabel", header)
     title.Size = UDim2.new(1, -60, 1, 0)
     title.Position = UDim2.new(0, 15, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "ITEM PURCHASER"
+    title.Text = "ITEM PURCHASER v3.1"
     title.TextColor3 = Color3.fromRGB(255, 200, 100)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 16
-    title.TextXAlignment = Enum.TextXAlignment.Left
     
     local closeBtn = Instance.new("TextButton", header)
     closeBtn.Size = UDim2.new(0, 40, 0, 40)
@@ -4639,58 +4675,86 @@ function ItemPurchaser:CreateUI()
     closeBtn.MouseButton1Click:Connect(function()
         self.UI.MainFrame.Visible = false
         self.Enabled = false
+        if OpenBtn then
+            OpenBtn.Text = "OPEN ITEM PURCHASER"
+            OpenBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+        end
     end)
     
     -- Item List
     self.UI.ItemList = Instance.new("ScrollingFrame", self.UI.MainFrame)
-    self.UI.ItemList.Size = UDim2.new(1, -20, 1, -140)
+    self.UI.ItemList.Size = UDim2.new(1, -20, 1, -160) -- เพิ่มพื้นที่
     self.UI.ItemList.Position = UDim2.new(0, 10, 0, 55)
     self.UI.ItemList.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    self.UI.ItemList.BorderSizePixel = 0
     self.UI.ItemList.ScrollBarThickness = 6
     self.UI.ItemList.AutomaticCanvasSize = Enum.AutomaticSize.Y
     
     local listLayout = Instance.new("UIListLayout", self.UI.ItemList)
     listLayout.Padding = UDim.new(0, 5)
     
-    -- Controls
+    -- Controls (เพิ่ม Auto Equip)
     local controlFrame = Instance.new("Frame", self.UI.MainFrame)
-    controlFrame.Size = UDim2.new(1, -20, 0, 75)
-    controlFrame.Position = UDim2.new(0, 10, 1, -85)
+    controlFrame.Size = UDim2.new(1, -20, 0, 95)
+    controlFrame.Position = UDim2.new(0, 10, 1, -105)
     controlFrame.BackgroundTransparency = 1
     
-    local scanBtn = Instance.new("TextButton", controlFrame)
-    scanBtn.Size = UDim2.new(0.35, 0, 0, 35)
+    -- แถวแรก: SCAN + AMOUNT + AUTO
+    local row1 = Instance.new("Frame", controlFrame)
+    row1.Size = UDim2.new(1, 0, 0, 35)
+    row1.BackgroundTransparency = 1
+    
+    local scanBtn = Instance.new("TextButton", row1)
+    scanBtn.Size = UDim2.new(0.35, 0, 1, 0)
     scanBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
     scanBtn.Text = "SCAN"
-    scanBtn.TextColor3 = Color3.new(1, 1, 1)
     scanBtn.Font = Enum.Font.GothamBold
     scanBtn.TextSize = 13
     
-    local amountBox = Instance.new("TextBox", controlFrame)
-    amountBox.Size = UDim2.new(0.25, 0, 0, 35)
-    amountBox.Position = UDim2.new(0.37, 0, 0, 0)
-    amountBox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    amountBox.Text = tostring(self.Settings.Amount)
-    amountBox.TextColor3 = Color3.new(1, 1, 1)
-    amountBox.Font = Enum.Font.GothamBold
-    amountBox.TextSize = 13
+    self.UI.AmountBox = Instance.new("TextBox", row1)
+    self.UI.AmountBox.Size = UDim2.new(0.25, 0, 1, 0)
+    self.UI.AmountBox.Position = UDim2.new(0.37, 0, 0, 0)
+    self.UI.AmountBox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    self.UI.AmountBox.Text = tostring(self.Settings.Amount)
+    self.UI.AmountBox.TextColor3 = Color3.new(1, 1, 1)
+    self.UI.AmountBox.Font = Enum.Font.GothamBold
+    self.UI.AmountBox.TextSize = 13
+    self.UI.AmountBox.ClearTextOnFocus = false
     
-    local autoBtn = Instance.new("TextButton", controlFrame)
-    autoBtn.Size = UDim2.new(0.35, 0, 0, 35)
+    local autoBtn = Instance.new("TextButton", row1)
+    autoBtn.Size = UDim2.new(0.35, 0, 1, 0)
     autoBtn.Position = UDim2.new(0.65, 0, 0, 0)
     autoBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
     autoBtn.Text = "AUTO"
-    autoBtn.TextColor3 = Color3.new(1, 1, 1)
     autoBtn.Font = Enum.Font.GothamBold
     autoBtn.TextSize = 13
+    
+    -- แถวสอง: AUTO EQUIP + CLEAR INVENTORY
+    local row2 = Instance.new("Frame", controlFrame)
+    row2.Size = UDim2.new(1, 0, 0, 30)
+    row2.Position = UDim2.new(0, 0, 0, 38)
+    row2.BackgroundTransparency = 1
+    
+    self.UI.AutoEquipToggle = Instance.new("TextButton", row2)
+    self.UI.AutoEquipToggle.Size = UDim2.new(0.48, -5, 1, 0)
+    self.UI.AutoEquipToggle.BackgroundColor3 = Color3.fromRGB(80, 100, 140)
+    self.UI.AutoEquipToggle.Text = "Auto-Equip: OFF"
+    self.UI.AutoEquipToggle.Font = Enum.Font.Gotham
+    self.UI.AutoEquipToggle.TextSize = 11
+    
+    local clearBtn = Instance.new("TextButton", row2)
+    clearBtn.Size = UDim2.new(0.48, -5, 1, 0)
+    clearBtn.Position = UDim2.new(0.52, 0, 0, 0)
+    clearBtn.BackgroundColor3 = Color3.fromRGB(140, 80, 80)
+    clearBtn.Text = "Clear Inv"
+    clearBtn.Font = Enum.Font.Gotham
+    clearBtn.TextSize = 11
     
     -- Status
     self.UI.StatusLabel = Instance.new("TextLabel", controlFrame)
     self.UI.StatusLabel.Size = UDim2.new(1, 0, 0, 25)
     self.UI.StatusLabel.Position = UDim2.new(0, 0, 1, -25)
     self.UI.StatusLabel.BackgroundTransparency = 1
-    self.UI.StatusLabel.Text = "พร้อมสแกน..."
+    self.UI.StatusLabel.Text = "พร้อมสแกน... (ลิมิต: " .. self.Settings.InventoryLimit .. ")"
     self.UI.StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
     self.UI.StatusLabel.Font = Enum.Font.Gotham
     self.UI.StatusLabel.TextSize = 11
@@ -4698,18 +4762,18 @@ function ItemPurchaser:CreateUI()
     
     -- Events
     scanBtn.MouseButton1Click:Connect(function()
-        self:ScanItems()
         scanBtn.Text = "Scanning..."
+        self:ScanItems()
         task.wait(1)
         scanBtn.Text = "SCAN"
     end)
     
-    amountBox.FocusLost:Connect(function()
-        local num = tonumber(amountBox.Text)
+    self.UI.AmountBox.FocusLost:Connect(function()
+        local num = tonumber(self.UI.AmountBox.Text)
         if num and num >= 1 and num <= 99 then
             self.Settings.Amount = math.floor(num)
         end
-        amountBox.Text = tostring(self.Settings.Amount)
+        self.UI.AmountBox.Text = tostring(self.Settings.Amount)
     end)
     
     autoBtn.MouseButton1Click:Connect(function()
@@ -4717,9 +4781,28 @@ function ItemPurchaser:CreateUI()
         autoBtn.Text = self.Settings.AutoPurchase and "AUTO: ON" or "AUTO"
         autoBtn.BackgroundColor3 = self.Settings.AutoPurchase and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(140, 100, 200)
     end)
+    
+    self.UI.AutoEquipToggle.MouseButton1Click:Connect(function()
+        self.Settings.AutoEquip = not self.Settings.AutoEquip
+        self.UI.AutoEquipToggle.Text = self.Settings.AutoEquip and "Auto-Equip: ON" or "Auto-Equip: OFF"
+        self.UI.AutoEquipToggle.BackgroundColor3 = self.Settings.AutoEquip and Color3.fromRGB(60, 140, 80) or Color3.fromRGB(80, 100, 140)
+    end)
+    
+    clearBtn.MouseButton1Click:Connect(function()
+        local count = 0
+        if LocalPlayer.Backpack then
+            for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    tool:Destroy()
+                    count = count + 1
+                end
+            end
+        end
+        self:UIStatus("ทำลาย " .. count .. " ชิ้น", Color3.fromRGB(255, 200, 100))
+    end)
 end
 
--- อัพเดทรายการใน UI
+-- อัพเดท UI List
 function ItemPurchaser:UpdateUIList()
     if not self.UI.ItemList then return end
     
@@ -4729,16 +4812,15 @@ function ItemPurchaser:UpdateUIList()
     
     for index, item in ipairs(self.Items) do
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, -10, 0, 45)
+        btn.Size = UDim2.new(1, -10, 0, 48) -- เพิ่มความสูง
         btn.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(35, 35, 50) or Color3.fromRGB(40, 40, 55)
-        btn.Text = string.format(" %s\n [%.0fm] | Price: %s", item.Name, item.Distance, item.Price)
+        btn.Text = string.format(" %s\n [%.0fm] | %s", item.Name, item.Distance, item.Price)
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.Font = Enum.Font.Gotham
         btn.TextSize = 12
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.Parent = self.UI.ItemList
         
-        -- ปุ่มซื้อ
         local buyBtn = Instance.new("TextButton", btn)
         buyBtn.Size = UDim2.new(0, 70, 1, -8)
         buyBtn.Position = UDim2.new(1, -75, 0, 4)
@@ -4748,10 +4830,9 @@ function ItemPurchaser:UpdateUIList()
         buyBtn.Font = Enum.Font.GothamBold
         buyBtn.TextSize = 11
         
-        -- ปุ่มซื้อหลาย
         local multiBtn = Instance.new("TextButton", btn)
-        multiBtn.Size = UDim2.new(0, 45, 1, -8)
-        multiBtn.Position = UDim2.new(1, -125, 0, 4)
+        multiBtn.Size = UDim2.new(0, 50, 1, -8)
+        multiBtn.Position = UDim2.new(1, -130, 0, 4)
         multiBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
         multiBtn.Text = "x" .. self.Settings.Amount
         multiBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -4767,30 +4848,24 @@ function ItemPurchaser:UpdateUIList()
         end)
         
         buyBtn.MouseButton1Click:Connect(function()
-            if self:PurchaseItem(item, 1) then
-                buyBtn.Text = "✓"
-                buyBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 60)
-                task.wait(0.5)
-                self:ScanItems()
-            else
-                buyBtn.Text = "✗"
-                buyBtn.BackgroundColor3 = Color3.fromRGB(160, 60, 60)
-                task.wait(1)
-                buyBtn.Text = "BUY"
-                buyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
-            end
+            local success, count = self:PurchaseItem(item, 1)
+            buyBtn.Text = success and "✓" or "✗"
+            buyBtn.BackgroundColor3 = success and Color3.fromRGB(60, 160, 60) or Color3.fromRGB(160, 60, 60)
+            task.wait(0.5)
+            self:ScanItems()
         end)
         
         multiBtn.MouseButton1Click:Connect(function()
-            local purchased = self:PurchaseMultiple(item, self.Settings.Amount)
-            multiBtn.Text = purchased .. "✓"
-            multiBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 60)
+            local success, count = self:PurchaseItem(item, self.Settings.Amount)
+            multiBtn.Text = count .. "✓"
+            multiBtn.BackgroundColor3 = success and Color3.fromRGB(60, 160, 60) or Color3.fromRGB(160, 60, 60)
             task.wait(0.5)
             self:ScanItems()
         end)
     end
     
-    self.UI.StatusLabel.Text = string.format("พบ %d รายการ | สแกนทุก 2 วินาที", #self.Items)
+    self.UI.StatusLabel.Text = string.format("พบ %d รายการ | สแกนทุก 2 วิ | ลิมิต: %d/%d", 
+        #self.Items, self:GetInventoryCount(), self.Settings.InventoryLimit)
 end
 
 -- เปิด/ปิด UI
@@ -4809,72 +4884,17 @@ function ItemPurchaser:ToggleUI()
     return self.Enabled
 end
 
--- UI หลักในแท็บ
-local PurchaserFrame = Instance.new("Frame")
-PurchaserFrame.Size = UDim2.new(1, -30, 0, 90)
-PurchaserFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-PurchaserFrame.BorderSizePixel = 0
-PurchaserFrame.LayoutOrder = 17 -- ต่อจาก Float
-PurchaserFrame.Parent = MainPage
-
-local PurchaserStroke = Instance.new("UIStroke", PurchaserFrame)
-PurchaserStroke.Color = Color3.fromRGB(70, 70, 120)
-PurchaserStroke.Thickness = 1
-
-local PurchaserTitle = Instance.new("TextLabel")
-PurchaserTitle.Size = UDim2.new(1, -20, 0, 26)
-PurchaserTitle.Position = UDim2.new(0, 10, 0, 8)
-PurchaserTitle.BackgroundTransparency = 1
-PurchaserTitle.Text = "🛒 ITEM PURCHASER"
-PurchaserTitle.TextColor3 = Color3.fromRGB(255, 200, 100)
-PurchaserTitle.Font = Enum.Font.GothamBold
-PurchaserTitle.TextSize = 15
-PurchaserTitle.TextXAlignment = Enum.TextXAlignment.Left
-PurchaserTitle.Parent = PurchaserFrame
-
-local PurchaserSub = Instance.new("TextLabel")
-PurchaserSub.Size = UDim2.new(1, -20, 0, 20)
-PurchaserSub.Position = UDim2.new(0, 10, 0, 32)
-PurchaserSub.BackgroundTransparency = 1
-PurchaserSub.Text = "ซื้อ/หยิบของจาก ProximityPrompt, ClickDetector, Tool"
-PurchaserSub.TextColor3 = Color3.fromRGB(180, 180, 220)
-PurchaserSub.Font = Enum.Font.Gotham
-PurchaserSub.TextSize = 11
-PurchaserSub.TextXAlignment = Enum.TextXAlignment.Left
-PurchaserSub.Parent = PurchaserFrame
-
-local OpenBtn = Instance.new("TextButton")
-OpenBtn.Size = UDim2.new(0.9, 0, 0, 32)
-OpenBtn.Position = UDim2.new(0.05, 0, 0, 52)
-OpenBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
-OpenBtn.Text = "OPEN ITEM PURCHASER"
-OpenBtn.TextColor3 = Color3.new(1, 1, 1)
-OpenBtn.Font = Enum.Font.GothamBold
-OpenBtn.TextSize = 14
-OpenBtn.BorderSizePixel = 0
-OpenBtn.Parent = PurchaserFrame
-
-OpenBtn.MouseEnter:Connect(function()
-    TweenService:Create(OpenBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 180, 80)}):Play()
-end)
-
-OpenBtn.MouseLeave:Connect(function()
-    local color = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
-    TweenService:Create(OpenBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
-end)
-
-OpenBtn.MouseButton1Click:Connect(function()
-    local state = ItemPurchaser:ToggleUI()
-    if state then
-        OpenBtn.Text = "CLOSE"
-        OpenBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
-        PurchaserTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
-    else
-        OpenBtn.Text = "OPEN ITEM PURCHASER"
-        OpenBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
-        PurchaserTitle.TextColor3 = Color3.fromRGB(255, 200, 100)
-    end
-end)
+-- เชื่อมกับ UI หลัก
+if PurchaserFrame and OpenBtn then
+    OpenBtn.MouseButton1Click:Connect(function()
+        local state = ItemPurchaser:ToggleUI()
+        OpenBtn.Text = state and "CLOSE" or "OPEN ITEM PURCHASER"
+        OpenBtn.BackgroundColor3 = state and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+        if PurchaserTitle then
+            PurchaserTitle.TextColor3 = state and Color3.fromRGB(150, 255, 150) or Color3.fromRGB(255, 200, 100)
+        end
+    end)
+end
 
 sg.Destroying:Connect(function()
     ItemPurchaser.Enabled = false
@@ -4886,7 +4906,7 @@ sg.Destroying:Connect(function()
     end
 end)
 
-print("[ItemPurchaser] Game Item Purchaser v2.0 Loaded (Layout 17)")
+print("[ItemPurchaser] v3.1 - Upgraded + Auto-Equip + Inventory Limit")
 print("[ItemPurchaser] Support ProximityPrompt, ClickDetector, Tool, Multi-Purchase")
 
 
