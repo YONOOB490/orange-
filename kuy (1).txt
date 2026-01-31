@@ -770,6 +770,7 @@ RefreshBtn.MouseLeave:Connect(function()
 end)
 
 -- Events
+-- [แก้ไข] เชื่อม Event หลังสร้าง UI เสร็จ
 ItemToggle.MouseButton1Click:Connect(function()
     local state = ItemESP:Toggle()
     if state then
@@ -2393,17 +2394,7 @@ TeleportBtn.Font = Enum.Font.GothamBold
 TeleportBtn.TextSize = 14
 TeleportBtn.BorderSizePixel = 0
 TeleportBtn.Parent = TPFrame
-
--- Hover Effects
-TeleportBtn.MouseEnter:Connect(function()
-    TweenService:Create(TeleportBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
-end)
-TeleportBtn.MouseLeave:Connect(function()
-    local color = Teleport.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(80, 80, 140)
-    TweenService:Create(TeleportBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
-end)
-
--- กดเปิด/ปิด
+-- [แก้ไข] Teleport Event
 TeleportBtn.MouseButton1Click:Connect(function()
     Teleport.Enabled = not Teleport.Enabled
     
@@ -2417,6 +2408,17 @@ TeleportBtn.MouseButton1Click:Connect(function()
         if Teleport.Window then Teleport.Window:Destroy() end
     end
 end)
+
+
+-- Hover Effects
+TeleportBtn.MouseEnter:Connect(function()
+    TweenService:Create(TeleportBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 100, 170)}):Play()
+end)
+TeleportBtn.MouseLeave:Connect(function()
+    local color = Teleport.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(80, 80, 140)
+    TweenService:Create(TeleportBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
 
 -- คีย์ลัด (PC เท่านั้น) - T = ใกล้สุด
 game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
@@ -3602,57 +3604,45 @@ function NPCWarp:Toggle()
 end
 
 -- เชื่อมกับ UI เดิม
-if NPCBtn then
-    NPCBtn.MouseButton1Click:Connect(function()
-        local state = NPCWarp:Toggle()
-        if state then
-            NPCBtn.Text = "ON"
-            NPCBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
-            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150) end
-            if Status then 
-                Status.Text = "กำลังสแกน NPC..."
-                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-            end
-        else
-            NPCBtn.Text = "OFF"
-            NPCBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50) end
-            if Status then 
-                Status.Text = "พร้อมสแกน NPC ในรัศมี 200 studs"
-                Status.TextColor3 = Color3.fromRGB(150, 150, 180)
-            end
-        end
-    end)
-end
+-- [แก้ไข] NPC Warp Events
+NPCBtn.MouseButton1Click:Connect(function()
+    local state = NPCWarp:Toggle()
+    if state then
+        NPCBtn.Text = "ON"
+        NPCBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+        Status.Text = "กำลังสแกน NPC..."
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        NPCBtn.Text = "OFF"
+        NPCBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+        Status.Text = "พร้อมสแกน NPC ในรัศมี 200 studs"
+        Status.TextColor3 = Color3.fromRGB(150, 150, 180)
+    end
+end)
 
-if ModeBtn then
-    ModeBtn.MouseButton1Click:Connect(function()
-        local modes = {"Interact", "Attack", "Follow"}
-        local idx = table.find(modes, NPCWarp.Mode) or 1
-        idx = idx % #modes + 1
-        NPCWarp.Mode = modes[idx]
-        ModeBtn.Text = "Mode: " .. NPCWarp.Mode
-        if Status then 
-            Status.Text = "โหมด: " .. NPCWarp.Mode .. " | รัศมี: " .. NPCWarp.Range .. " studs"
-        end
-    end)
-end
+ModeBtn.MouseButton1Click:Connect(function()
+    local modes = {"Interact", "Attack", "Follow"}
+    local idx = table.find(modes, NPCWarp.Mode) or 1
+    idx = idx % #modes + 1
+    NPCWarp.Mode = modes[idx]
+    ModeBtn.Text = "Mode: " .. NPCWarp.Mode
+    Status.Text = "โหมด: " .. NPCWarp.Mode .. " | รัศมี: " .. NPCWarp.Range .. " studs"
+end)
 
-if AutoMoveBtn then
-    AutoMoveBtn.MouseButton1Click:Connect(function()
-        NPCWarp.AutoMove.Enabled = not NPCWarp.AutoMove.Enabled
-        if NPCWarp.AutoMove.Enabled then
-            AutoMoveBtn.Text = "AUTO MOVE: ON"
-            AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
-            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150) end
-        else
-            AutoMoveBtn.Text = "AUTO MOVE: OFF"
-            AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
-            if NPCTitle then NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50) end
-            NPCWarp:StopMove()
-        end
-    end)
-end
+AutoMoveBtn.MouseButton1Click:Connect(function()
+    NPCWarp.AutoMove.Enabled = not NPCWarp.AutoMove.Enabled
+    if NPCWarp.AutoMove.Enabled then
+        AutoMoveBtn.Text = "AUTO MOVE: ON"
+        AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+        NPCTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+    else
+        AutoMoveBtn.Text = "AUTO MOVE: OFF"
+        AutoMoveBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 140)
+        NPCTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+    end
+end)
 
 -- Cleanup
 sg.Destroying:Connect(function()
@@ -5111,11 +5101,6 @@ PurchaserToggleBtn.MouseLeave:Connect(function()
     TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
 end)
 
-PurchaserToggleBtn.MouseButton1Click:Connect(function()
-    local state = ItemPurchaser:Toggle()
-    PurchaserToggleBtn.Text = state and "CLOSE ITEM PURCHASER" or "OPEN ITEM PURCHASER"
-    PurchaserToggleBtn.BackgroundColor3 = state and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
-end)
 
 sg.Destroying:Connect(function()
     ItemPurchaser.Enabled = false
@@ -5405,6 +5390,34 @@ TweenService:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
 }):Play()
 
 print("Hub v12.1 Loaded – มุมเหลี่ยมหมดทุกจุดแล้ว")
+-- [แก้ไข] Item Purchaser Toggle (วางท้ายสุดของไฟล์)
+local PurchaserToggleBtn = Instance.new("TextButton")
+PurchaserToggleBtn.Name = "OpenPurchaser"
+PurchaserToggleBtn.Size = UDim2.new(1, -30, 0, 36)
+PurchaserToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+PurchaserToggleBtn.Text = "OPEN ITEM PURCHASER"
+PurchaserToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+PurchaserToggleBtn.Font = Enum.Font.GothamBold
+PurchaserToggleBtn.TextSize = 13
+PurchaserToggleBtn.BorderSizePixel = 0
+PurchaserToggleBtn.LayoutOrder = 17.5
+PurchaserToggleBtn.Parent = MainPage
+
+PurchaserToggleBtn.MouseEnter:Connect(function()
+    TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 180, 80)}):Play()
+end)
+
+PurchaserToggleBtn.MouseLeave:Connect(function()
+    local color = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+    TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+PurchaserToggleBtn.MouseButton1Click:Connect(function()
+    local state = ItemPurchaser:Toggle()
+    PurchaserToggleBtn.Text = state and "CLOSE ITEM PURCHASER" or "OPEN ITEM PURCHASER"
+    PurchaserToggleBtn.BackgroundColor3 = state and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+end)
+
 -- ==============================================
 -- ANTI-BAN SYSTEM v2.1 - ป้องกันแบน/เตะ/ตรวจจับ
 -- แก้บัคสำหรับ Delta Executor + Performance Mode
