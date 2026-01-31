@@ -1436,11 +1436,87 @@ local Aimbot = {
         MissedShots = 0,
         CurrentHitChance = 100,
         TargetSwitchTime = 0
-    }
+    },
+    
+    -- เพิ่มตัวแปรสำหรับ Visuals
+    fovCircle = nil,
+    snapline = nil
 }
 
--- [ส่วนฟังก์ชันเดิม: CreateFOV, CreateSnapline, IsValidTarget, CanSee]
+-- ฟังก์ชันเช็คเป้าหมายที่หายไป
+function Aimbot:IsValidTarget(player)
+    if not player or player == LocalPlayer then return false end
+    if not player.Character then return false end
+    
+    local char = player.Character
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    
+    if not hrp or not humanoid then return false end
+    if humanoid.Health <= 0 then return false end
+    if not hrp:IsDescendantOf(workspace) then return false end
+    
+    -- เช็คระยะ
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return false end
+    
+    local dist = (myHRP.Position - hrp.Position).Magnitude
+    if dist > 1500 then return false end
+    
+    return true
+end
 
+-- ฟังก์ชันเช็ค Wall (ถ้าเปิดใช้)
+function Aimbot:CanSee(targetPart)
+    if not self.Settings.WallCheck then return true end
+    if not targetPart then return false end
+    
+    local camera = workspace.CurrentCamera
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return false end
+    
+    local rayOrigin = myHRP.Position
+    local rayDirection = (targetPart.Position - rayOrigin).Unit * 1000
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    
+    local result = workspace:Raycast(rayOrigin, rayDirection, rayParams)
+    if not result then return true end
+    
+    local hitPart = result.Instance
+    if hitPart:IsDescendantOf(targetPart.Parent) then return true end
+    
+    return false
+end
+
+-- สร้าง FOV Circle
+function Aimbot:CreateFOV()
+    if not self.fovCircle then
+        self.fovCircle = Drawing.new("Circle")
+        self.fovCircle.Color = self.Settings.FOVColor
+        self.fovCircle.Thickness = self.Settings.FOVThickness
+        self.fovCircle.NumSides = 64
+        self.fovCircle.Radius = self.Settings.FOV * 2
+        self.fovCircle.Filled = false
+        self.fovCircle.Visible = false
+        self.fovCircle.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
+    end
+    return self.fovCircle
+end
+
+-- สร้าง Snapline
+function Aimbot:CreateSnapline()
+    if not self.snapline then
+        self.snapline = Drawing.new("Line")
+        self.snapline.Color = Color3.fromRGB(255, 255, 255)
+        self.snapline.Thickness = 1
+        self.snapline.Visible = false
+    end
+    return self.snapline
+end
+
+-- คำนวณ Hit Chance
 function Aimbot:CalculateHitChance()
     if self.Runtime.ConsecutiveHits > 5 then
         self.Runtime.CurrentHitChance = math.max(self.Settings.MinHitChance, self.Settings.HitChance - 5)
@@ -1449,9 +1525,12 @@ function Aimbot:CalculateHitChance()
     end
 end
 
+-- หาเป้าหมายที่ดีที่สุด
 function Aimbot:FindTarget()
     local camera = workspace.CurrentCamera
-    local center = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
+    if not camera then return nil end
+    
+    local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
@@ -1459,10 +1538,9 @@ function Aimbot:FindTarget()
     local targets = {}
     
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and self:IsValidTarget(player) then
+        if self:IsValidTarget(player) then
             local pChar = player.Character
-            local targetPart = pChar:FindFirstChild(self.Settings.TargetPart) 
-                              or pChar:FindFirstChild("HumanoidRootPart")
+            local targetPart = pChar:FindFirstChild(self.Settings.TargetPart) or pChar:FindFirstChild("HumanoidRootPart")
             
             if targetPart then
                 local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
@@ -1472,24 +1550,26 @@ function Aimbot:FindTarget()
                     local screenDist = (screenPos - center).Magnitude
                     local worldDist = (root.Position - targetPart.Position).Magnitude
                     
-                    local fovScore = screenDist / self.Settings.FOV
-                    local distScore = worldDist / 1000
-                    local score = fovScore * 0.4 + distScore * 0.6
-                    
-                    if self.Target and self.Target.Player == player then
-                        score = score * 0.9
+                    if screenDist <= self.Settings.FOV then
+                        local fovScore = screenDist / self.Settings.FOV
+                        local distScore = worldDist / 1000
+                        local score = fovScore * 0.4 + distScore * 0.6
+                        
+                        if self.Target and self.Target.Player == player then
+                            score = score * 0.9
+                        end
+                        
+                        table.insert(targets, {
+                            Player = player,
+                            Part = targetPart,
+                            ScreenPos = screenPos,
+                            ScreenDist = screenDist,
+                            WorldDist = worldDist,
+                            Score = score,
+                            Velocity = targetPart.AssemblyLinearVelocity,
+                            Character = pChar
+                        })
                     end
-                    
-                    table.insert(targets, {
-                        Player = player,
-                        Part = targetPart,
-                        ScreenPos = screenPos,
-                        ScreenDist = screenDist,
-                        WorldDist = worldDist,
-                        Score = score,
-                        Velocity = targetPart.Velocity,
-                        Character = pChar
-                    })
                 end
             end
         end
@@ -1500,7 +1580,7 @@ function Aimbot:FindTarget()
         return nil 
     end
     
-    table.sort(targets, function(a,b) return a.Score < b.Score end)
+    table.sort(targets, function(a, b) return a.Score < b.Score end)
     
     local best = targets[1]
     
@@ -1514,6 +1594,7 @@ function Aimbot:FindTarget()
     return best
 end
 
+-- Silent Aim
 function Aimbot:SilentAim(target)
     if not target or not target.Part then return end
     
@@ -1544,19 +1625,20 @@ function Aimbot:SilentAim(target)
     end
     
     local oldCFrame = camera.CFrame
-    local fakeCFrame = CFrame.new(camera.CFrame.Position, aimPosition)
     
     self:CalculateHitChance()
     
     if math.random(1, 100) <= self.Runtime.CurrentHitChance then
-        local steppedConn
-        steppedConn = game:GetService("RunService").RenderStepped:Connect(function()
-            camera.CFrame = fakeCFrame
+        pcall(function()
+            local steppedConn
+            steppedConn = game:GetService("RunService").RenderStepped:Connect(function()
+                camera.CFrame = CFrame.new(camera.CFrame.Position, aimPosition)
+            end)
+            
+            task.wait(0.01)
+            steppedConn:Disconnect()
+            camera.CFrame = oldCFrame
         end)
-        
-        task.wait(0.01)
-        steppedConn:Disconnect()
-        camera.CFrame = oldCFrame
         
         self.Runtime.ConsecutiveHits = self.Runtime.ConsecutiveHits + 1
     else
@@ -1566,7 +1648,84 @@ function Aimbot:SilentAim(target)
     end
 end
 
--- [NormalAim, RageMode, TriggerBot, UpdateVisuals ยังเหมือนเดิม]
+-- Normal Aim (เพิ่มฟังก์ชันที่หายไป)
+function Aimbot:NormalAim(target)
+    if not target or not target.Part then return end
+    
+    local camera = workspace.CurrentCamera
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    
+    local aimPosition = target.Part.Position + Vector3.new(0, self.Settings.TargetHeightOffset, 0)
+    
+    if self.Settings.Prediction then
+        local distance = (myRoot.Position - target.Part.Position).Magnitude
+        local travelTime = distance / 1500
+        local prediction = target.Velocity * (travelTime + self.Settings.PredictionVelocity)
+        aimPosition = aimPosition + prediction
+    end
+    
+    local oldCFrame = camera.CFrame
+    local targetCFrame = CFrame.new(camera.CFrame.Position, aimPosition)
+    
+    for i = 1, 10 do
+        local t = i / 10
+        camera.CFrame = oldCFrame:Lerp(targetCFrame, t)
+        task.wait(self.Settings.Smoothness / 10)
+    end
+end
+
+-- Rage Mode (เพิ่มฟังก์ชัน)
+function Aimbot:RageMode(target)
+    if not target or not target.Part then return end
+    
+    local camera = workspace.CurrentCamera
+    camera.CFrame = CFrame.new(camera.CFrame.Position, target.Part.Position)
+    
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        tool:Activate()
+    end
+end
+
+-- TriggerBot (เพิ่มฟังก์ชัน)
+function Aimbot:TriggerBot(target)
+    if not self.Settings.TriggerBot then return end
+    if not target then return end
+    
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    local delay = self.Settings.TriggerDelay
+    if self.Settings.RandomizeDelay then
+        local random = Random.new(tick())
+        delay = random:NextNumber(self.Settings.MinDelay, self.Settings.MaxDelay)
+    end
+    
+    task.wait(delay)
+    tool:Activate()
+end
+
+-- Update Visuals (เพิ่มฟังก์ชัน)
+function Aimbot:UpdateVisuals()
+    if self.Settings.ShowFOV then
+        local fov = self:CreateFOV()
+        fov.Visible = true
+        fov.Radius = self.Settings.FOV * 2
+        fov.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
+    elseif self.fovCircle then
+        self.fovCircle.Visible = false
+    end
+    
+    if self.Settings.Snaplines and self.Target then
+        local line = self:CreateSnapline()
+        line.Visible = true
+        line.From = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
+        line.To = self.Target.ScreenPos
+    elseif self.snapline then
+        self.snapline.Visible = false
+    end
+end
 
 function Aimbot:Update()
     if not self.Enabled then 
@@ -1661,7 +1820,7 @@ AimStatus.Font = Enum.Font.Gotham
 AimStatus.TextSize = 11
 AimStatus.Parent = AimFrame
 
--- แถว 1: Main Toggle + Mode + Type
+-- แถวปุ่มหลัก
 local Row1 = Instance.new("Frame")
 Row1.Size = UDim2.new(1, -20, 0, 40)
 Row1.Position = UDim2.new(0, 10, 0, 58)
@@ -1669,7 +1828,7 @@ Row1.BackgroundTransparency = 1
 Row1.Parent = AimFrame
 
 local AimBtn = Instance.new("TextButton")
-AimBtn.Size = UDim2.new(0.3, -5, 1, 0)
+AimBtn.Size = UDim2.new(0.4, -5, 1, 0)
 AimBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
 AimBtn.Text = "OFF"
 AimBtn.Font = Enum.Font.GothamBold
@@ -1678,7 +1837,7 @@ AimBtn.Parent = Row1
 
 local ModeSelect = Instance.new("TextButton")
 ModeSelect.Size = UDim2.new(0.35, -5, 1, 0)
-ModeSelect.Position = UDim2.new(0.3, 5, 0, 0)
+ModeSelect.Position = UDim2.new(0.4, 5, 0, 0)
 ModeSelect.BackgroundColor3 = Color3.fromRGB(200, 80, 200) -- Pink = Silent
 ModeSelect.Text = "Silent"
 ModeSelect.Font = Enum.Font.GothamBold
@@ -1686,15 +1845,15 @@ ModeSelect.TextSize = 12
 ModeSelect.Parent = Row1
 
 local TypeSelect = Instance.new("TextButton")
-TypeSelect.Size = UDim2.new(0.35, -5, 1, 0)
-TypeSelect.Position = UDim2.new(0.65, 5, 0, 0)
+TypeSelect.Size = UDim2.new(0.25, -5, 1, 0)
+TypeSelect.Position = UDim2.new(0.75, 5, 0, 0)
 TypeSelect.BackgroundColor3 = Color3.fromRGB(80, 140, 180)
-TypeSelect.Text = "FOV"
+TypeSelect.Text = "Hybrid"
 TypeSelect.Font = Enum.Font.GothamBold
-TypeSelect.TextSize = 12
+ModeSelect.TextSize = 12
 TypeSelect.Parent = Row1
 
--- แถว 2: Target + WallCheck + Trigger
+-- แถวการตั้งค่า
 local Row2 = Instance.new("Frame")
 Row2.Size = UDim2.new(1, -20, 0, 32)
 Row2.Position = UDim2.new(0, 10, 0, 102)
@@ -1713,8 +1872,8 @@ TargetBtn.Parent = Row2
 local WallCheckBtn = Instance.new("TextButton")
 WallCheckBtn.Size = UDim2.new(0.32, -5, 0.8, 0)
 WallCheckBtn.Position = UDim2.new(0.34, 0, 0.1, 0)
-WallCheckBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 80)
-WallCheckBtn.Text = "Wall: ON"
+WallCheckBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 60)
+WallCheckBtn.Text = "Wall: OFF"
 WallCheckBtn.Font = Enum.Font.GothamBold
 WallCheckBtn.TextSize = 11
 WallCheckBtn.Parent = Row2
@@ -1728,7 +1887,7 @@ TriggerBtn.Font = Enum.Font.GothamBold
 TriggerBtn.TextSize = 11
 TriggerBtn.Parent = Row2
 
--- แถว 3: FOV + Smoothness
+-- แถว FOV + Smoothness
 local Row3 = Instance.new("Frame")
 Row3.Size = UDim2.new(1, -20, 0, 28)
 Row3.Position = UDim2.new(0, 10, 0, 138)
@@ -1746,18 +1905,17 @@ FOVLabel.Parent = Row3
 local FOVDisplay = Instance.new("TextLabel")
 FOVDisplay.Size = UDim2.new(0.12, 0, 1, 0)
 FOVDisplay.Position = UDim2.new(0.15, 0, 0, 0)
-FOVDisplay.Text = "150"
+FOVDisplay.Text = "180"
 FOVDisplay.TextColor3 = Color3.fromRGB(255, 255, 100)
 FOVDisplay.Font = Enum.Font.GothamBold
-FOVDisplay.BackgroundTransparency = 1
+FOVDisplay.TextSize = 16
 FOVDisplay.Parent = Row3
 
--- FOV Buttons
 local fovBtn = function(text, pos, change)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.1, 0, 0.9, 0)
     btn.Position = UDim2.new(pos, 0, 0.05, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+    btn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
     btn.Text = text
     btn.TextColor3 = Color3.new(1,1,1)
     btn.Font = Enum.Font.GothamBold
@@ -1768,39 +1926,51 @@ local fovBtn = function(text, pos, change)
     end)
     return btn
 end
+
 fovBtn("-", 0.27, -25)
 fovBtn("+", 0.38, 25)
 
--- Show FOV Toggle
-local ShowFOVBtn = Instance.new("TextButton")
-ShowFOVBtn.Size = UDim2.new(0.22, 0, 0.9, 0)
-ShowFOVBtn.Position = UDim2.new(0.5, 0, 0.05, 0)
-ShowFOVBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 120)
-ShowFOVBtn.Text = "Show FOV"
-ShowFOVBtn.Font = Enum.Font.Gotham
-ShowFOVBtn.TextSize = 11
-ShowFOVBtn.Parent = Row3
-
--- Smoothness
 local SmoothLabel = Instance.new("TextLabel")
 SmoothLabel.Size = UDim2.new(0.15, 0, 1, 0)
-SmoothLabel.Position = UDim2.new(0.74, 0, 0, 0)
+SmoothLabel.Position = UDim2.new(0.5, 0, 0, 0)
 SmoothLabel.Text = "Smooth:"
 SmoothLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-SmoothLabel.Font = Enum.Font.Gotham
+SmoothLabel.Font = Enum.Font.GothamBold
 SmoothLabel.BackgroundTransparency = 1
 SmoothLabel.Parent = Row3
 
 local SmoothBtn = Instance.new("TextButton")
 SmoothBtn.Size = UDim2.new(0.1, 0, 0.9, 0)
-SmoothBtn.Position = UDim2.new(0.89, 0, 0.05, 0)
-SmoothBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 140)
-SmoothBtn.Text = "0.15"
+SmoothBtn.Position = UDim2.new(0.65, 0, 0.05, 0)
+SmoothBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+SmoothBtn.Text = "0.05"
 SmoothBtn.Font = Enum.Font.GothamBold
 SmoothBtn.TextSize = 10
 SmoothBtn.Parent = Row3
+SmoothBtn.MouseButton1Click:Connect(function()
+    local smooths = {0.05, 0.1, 0.15, 0.25, 0.5, 1.0}
+    local idx = table.find(smooths, Aimbot.Settings.Smoothness) or 1
+    Aimbot.Settings.Smoothness = smooths[idx % #smooths + 1]
+    SmoothBtn.Text = string.format("%.2f", Aimbot.Settings.Smoothness)
+end)
 
--- แถว 4: Prediction + Hit Chance
+local ShowFOVBtn = Instance.new("TextButton")
+ShowFOVBtn.Size = UDim2.new(0.22, 0, 0.9, 0)
+ShowFOVBtn.Position = UDim2.new(0.76, 0, 0.05, 0)
+ShowFOVBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 80)
+ShowFOVBtn.Text = "Show FOV"
+ShowFOVBtn.Font = Enum.Font.Gotham
+ShowFOVBtn.TextSize = 11
+ShowFOVBtn.Parent = Row3
+ShowFOVBtn.MouseButton1Click:Connect(function()
+    Aimbot.Settings.ShowFOV = not Aimbot.Settings.ShowFOV
+    ShowFOVBtn.BackgroundColor3 = Aimbot.Settings.ShowFOV and Color3.fromRGB(80, 180, 120) or Color3.fromRGB(80, 100, 120)
+    if not Aimbot.Settings.ShowFOV and Aimbot.fovCircle then
+        Aimbot.fovCircle.Visible = false
+    end
+end)
+
+-- แถว Prediction + Hit Chance
 local Row4 = Instance.new("Frame")
 Row4.Size = UDim2.new(1, -20, 0, 28)
 Row4.Position = UDim2.new(0, 10, 0, 170)
@@ -1815,6 +1985,11 @@ PredictionBtn.Text = "Prediction: ON"
 PredictionBtn.Font = Enum.Font.GothamBold
 PredictionBtn.TextSize = 11
 PredictionBtn.Parent = Row4
+PredictionBtn.MouseButton1Click:Connect(function()
+    Aimbot.Settings.Prediction = not Aimbot.Settings.Prediction
+    PredictionBtn.Text = "Prediction: " .. (Aimbot.Settings.Prediction and "ON" or "OFF")
+    PredictionBtn.BackgroundColor3 = Aimbot.Settings.Prediction and Color3.fromRGB(80, 140, 180) or Color3.fromRGB(80, 80, 80)
+end)
 
 local HitChanceBtn = Instance.new("TextButton")
 HitChanceBtn.Size = UDim2.new(0.48, -5, 0.85, 0)
@@ -1824,6 +1999,13 @@ HitChanceBtn.Text = "Hit: 100%"
 HitChanceBtn.Font = Enum.Font.GothamBold
 HitChanceBtn.TextSize = 11
 HitChanceBtn.Parent = Row4
+HitChanceBtn.MouseButton1Click:Connect(function()
+    local chances = {100, 90, 80, 75, 50, 25}
+    local idx = table.find(chances, Aimbot.Settings.HitChance) or 1
+    Aimbot.Settings.HitChance = chances[idx % #chances + 1]
+    HitChanceBtn.Text = "Hit: " .. Aimbot.Settings.HitChance .. "%"
+    HitChanceBtn.BackgroundColor3 = Aimbot.Settings.HitChance == 100 and Color3.fromRGB(180, 80, 80) or Color3.fromRGB(80, 140, 80)
+end)
 
 -- Warning
 local WarningText = Instance.new("TextLabel")
@@ -1860,7 +2042,6 @@ AimBtn.MouseButton1Click:Connect(function()
         AimBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
         AimTitle.TextColor3 = Color3.fromRGB(255, 100, 150)
         
-        -- Hide visuals
         if Aimbot.fovCircle then Aimbot.fovCircle.Visible = false end
         if Aimbot.snapline then Aimbot.snapline.Visible = false end
     end
@@ -1888,9 +2069,8 @@ ModeSelect.MouseButton1Click:Connect(function()
     AimStatus.Text = string.format("Mode: %s | Target: %s | FOV: %d", 
         Aimbot.Mode, Aimbot.Settings.TargetPart, Aimbot.Settings.FOV)
     
-    -- Update warning
     if Aimbot.Mode == "Silent" then
-        WarningText.Text = "⚠️ Silent Aim: กล้องไม่ขยับแต่กระสุนเข้าเป้า!"
+        WarningText.Text = "⚠️ Silent Aim: กล้องไม่ขยับแต่กระสุนโค้งเข้าหัว!"
         WarningText.TextColor3 = Color3.fromRGB(255, 200, 100)
     elseif Aimbot.Mode == "Rage" then
         WarningText.Text = "🔴 RAGE MODE: หมุนไว+ยิงทันที (เสี่ยงโดนแบน!)"
@@ -1931,39 +2111,6 @@ TriggerBtn.MouseButton1Click:Connect(function()
     TriggerBtn.BackgroundColor3 = Aimbot.Settings.TriggerBot and Color3.fromRGB(180, 140, 60) or Color3.fromRGB(80, 80, 80)
 end)
 
--- Show FOV Toggle
-ShowFOVBtn.MouseButton1Click:Connect(function()
-    Aimbot.Settings.ShowFOV = not Aimbot.Settings.ShowFOV
-    ShowFOVBtn.BackgroundColor3 = Aimbot.Settings.ShowFOV and Color3.fromRGB(80, 180, 120) or Color3.fromRGB(80, 80, 80)
-    if not Aimbot.Settings.ShowFOV and Aimbot.fovCircle then
-        Aimbot.fovCircle.Visible = false
-    end
-end)
-
--- Smoothness Cycle
-SmoothBtn.MouseButton1Click:Connect(function()
-    local smooths = {0.05, 0.1, 0.15, 0.25, 0.5, 1.0}
-    local idx = table.find(smooths, Aimbot.Settings.Smoothness) or 3
-    Aimbot.Settings.Smoothness = smooths[idx % #smooths + 1]
-    SmoothBtn.Text = string.format("%.2f", Aimbot.Settings.Smoothness)
-end)
-
--- Prediction Toggle
-PredictionBtn.MouseButton1Click:Connect(function()
-    Aimbot.Settings.Prediction = not Aimbot.Settings.Prediction
-    PredictionBtn.Text = "Prediction: " .. (Aimbot.Settings.Prediction and "ON" or "OFF")
-    PredictionBtn.BackgroundColor3 = Aimbot.Settings.Prediction and Color3.fromRGB(80, 140, 180) or Color3.fromRGB(80, 80, 80)
-end)
-
--- Hit Chance Cycle
-HitChanceBtn.MouseButton1Click:Connect(function()
-    local chances = {100, 90, 80, 75, 50, 25}
-    local idx = table.find(chances, Aimbot.Settings.HitChance) or 1
-    Aimbot.Settings.HitChance = chances[idx % #chances + 1]
-    HitChanceBtn.Text = "Hit: " .. Aimbot.Settings.HitChance .. "%"
-    HitChanceBtn.BackgroundColor3 = Aimbot.Settings.HitChance == 100 and Color3.fromRGB(180, 80, 80) or Color3.fromRGB(80, 140, 80)
-end)
-
 -- Cleanup
 sg.Destroying:Connect(function()
     Aimbot.Enabled = false
@@ -1978,9 +2125,13 @@ sg.Destroying:Connect(function()
     end
 end)
 
-print("[Aimbot] v3.0 Silent Aim Loaded")
+print("[Aimbot] v3.2 Silent Aim Loaded (Bug Fixed)")
 print("[Aimbot] Features: SilentAim, Prediction, TriggerBot, FOV Circle")
-print("[Aimbot] Mode 'Silent': กล้องนิ่งแต่กระสุนโค้งเข้าหัว!")
+
+-- ==============================================
+-- สิ้นสุดส่วนแก้ไข Aimbot
+-- ==============================================
+
 
 -- ==============================================
 -- TELEPORT TO PLAYER - เทเลพอร์ตไปหาผู้เล่น
@@ -5029,6 +5180,387 @@ resetBtn.MouseButton1Click:Connect(function()
     updateGUI()
     print("Reset GUI settings to default")
 end)
+-- ==============================================
+-- GAME ITEM PURCHASER v3.1 - UI ใน Main Tab
+-- สร้าง Frame แสดงใน Main Page (ไม่ใช่ Popup)
+-- ==============================================
+
+local ItemPurchaser = {
+    Enabled = false,
+    UI = {
+        MainFrame = nil,
+        StatusLabel = nil,
+        AmountBox = nil,
+        AutoEquipToggle = nil
+    },
+    Settings = {
+        ScanRadius = 300,
+        AutoPurchase = false,
+        AutoEquip = false,
+        Amount = 1,
+        PurchaseDelay = 0.1,
+        MaxQueue = 15,
+        InventoryLimit = 50
+    },
+    Items = {},
+    LastScan = 0
+}
+
+function ItemPurchaser:GetInventoryCount()
+    local count = 0
+    if LocalPlayer.Backpack then
+        count = #LocalPlayer.Backpack:GetChildren()
+    end
+    if LocalPlayer.Character then
+        for _, child in ipairs(LocalPlayer.Character:GetChildren()) do
+            if child:IsA("Tool") then
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+function ItemPurchaser:IsPurchaseableItem(obj)
+    if not obj then return false, nil end
+    if obj:IsA("ProximityPrompt") then
+        if obj.ObjectText and obj.ObjectText ~= "" then
+            return true, obj.ObjectText
+        end
+        local action = obj.ActionText:lower()
+        if action:find("purchase") or action:find("buy") or action:find("collect") or 
+           action:find("equip") or action:find("grab") or action:find("take") then
+            return true, obj.Parent.Name
+        end
+    end
+    if obj:IsA("ClickDetector") then
+        local parent = obj.Parent
+        if parent:FindFirstChildWhichIsA("SurfaceGui") or parent:FindFirstChildWhichIsA("BillboardGui") then
+            return true, parent.Name
+        end
+        if parent:FindFirstChildWhichIsA("Tool") then
+            return true, parent:FindFirstChildWhichIsA("Tool").Name
+        end
+    end
+    if obj:IsA("Tool") and obj.Parent == workspace then
+        return true, obj.Name
+    end
+    if obj:IsA("Model") then
+        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
+        if prompt then return self:IsPurchaseableItem(prompt) end
+        local click = obj:FindFirstChildWhichIsA("ClickDetector")
+        if click then return self:IsPurchaseableItem(click) end
+    end
+    return false, nil
+end
+
+function ItemPurchaser:PurchaseItem(itemData)
+    if not itemData or not itemData.Object then return false end
+    
+    local currentCount = self:GetInventoryCount()
+    if currentCount >= self.Settings.InventoryLimit then
+        return false
+    end
+    
+    local success = false
+    
+    if itemData.Type == "Tool" then
+        local successClone = pcall(function()
+            local tool = itemData.Object:Clone()
+            if tool then
+                for _, prop in ipairs({"GripPos", "GripForward", "GripRight", "GripUp"}) do
+                    if itemData.Object[prop] then
+                        tool[prop] = itemData.Object[prop]
+                    end
+                end
+                tool.Parent = LocalPlayer.Backpack or LocalPlayer.Character
+                success = true
+                if self.Settings.AutoEquip then
+                    LocalPlayer.Character.Humanoid:EquipTool(tool)
+                end
+                if itemData.Object.Parent == workspace then
+                    itemData.Object:Destroy()
+                end
+            end
+        end)
+        success = successClone
+    else
+        success = pcall(function()
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = CFrame.new(itemData.Position + Vector3.new(0, 5, 0))
+                task.wait(0.3)
+            end
+            
+            if itemData.Type == "ProximityPrompt" then
+                local prompt = itemData.Object
+                prompt:InputHoldBegin()
+                task.wait(prompt.HoldDuration or 0.2)
+                prompt:InputHoldEnd()
+            elseif itemData.Type == "ClickDetector" then
+                if fireclickdetector then
+                    fireclickdetector(itemData.Object)
+                end
+            end
+            
+            task.wait(self.Settings.PurchaseDelay)
+        end)
+    end
+    
+    return success
+end
+
+function ItemPurchaser:ScanItems()
+    if tick() - self.LastScan < 3 then return end
+    
+    self.Items = {}
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+    
+    local charPos = myHRP.Position
+    
+    local parts = workspace:GetPartBoundsInRadius(charPos, self.Settings.ScanRadius)
+    
+    for _, part in ipairs(parts) do
+        local parent = part.Parent
+        if parent and (parent:IsA("Model") or parent:IsA("BasePart")) then
+            local obj = parent:FindFirstChildWhichIsA("ProximityPrompt") or 
+                       parent:FindFirstChildWhichIsA("ClickDetector") or
+                       (parent:IsA("Tool") and parent)
+            
+            if obj then
+                local isItem, itemName = self:IsPurchaseableItem(obj)
+                if isItem and itemName and not self.Items[obj] then
+                    local dist = (part.Position - charPos).Magnitude
+                    if dist <= self.Settings.ScanRadius then
+                        table.insert(self.Items, {
+                            Object = obj,
+                            Name = itemName,
+                            Type = obj.ClassName,
+                            Distance = dist,
+                            Position = part.Position
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    table.sort(self.Items, function(a,b) return a.Distance < b.Distance end)
+    self.LastScan = tick()
+    self:UpdateDisplay()
+end
+
+function ItemPurchaser:UpdateDisplay()
+    if not self.UI.MainFrame then return end
+    
+    -- ล้างรายการเก่า
+    for _, child in ipairs(self.UI.MainFrame:GetChildren()) do
+        if child:IsA("TextButton") and child.Name ~= "OpenPurchaser" and child.Name ~= "ControlBtn" then
+            child:Destroy()
+        end
+    end
+    
+    if #self.Items == 0 then
+        self.UI.StatusLabel.Text = "ไม่พบไอเท็มในบริเวณ " .. self.Settings.ScanRadius .. " studs"
+        return
+    end
+    
+    -- แสดงเฉพาะ 5 รายการแรก
+    for i = 1, math.min(5, #self.Items) do
+        local item = self.Items[i]
+        local btn = Instance.new("TextButton")
+        btn.Name = "Item_" .. i
+        btn.Size = UDim2.new(1, -10, 0, 32)
+        btn.Position = UDim2.new(0, 5, 0, 32 + (i-1) * 34)
+        btn.BackgroundColor3 = i % 2 == 0 and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(45, 45, 60)
+        btn.Text = string.format(" %s [%.0fm]", item.Name, item.Distance)
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 11
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = self.UI.MainFrame
+        
+        btn.MouseButton1Click:Connect(function()
+            local success = self:PurchaseItem(item)
+            btn.Text = success and "✓ " .. item.Name or "✗ " .. item.Name
+            btn.BackgroundColor3 = success and Color3.fromRGB(60, 160, 60) or Color3.fromRGB(160, 60, 60)
+            task.wait(0.5)
+            self:ScanItems()
+        end)
+    end
+    
+    self.UI.StatusLabel.Text = string.format("พบ %d รายการ | ลิมิต: %d/%d", 
+        #self.Items, self:GetInventoryCount(), self.Settings.InventoryLimit)
+end
+
+function ItemPurchaser:CreateUI()
+    if self.UI.MainFrame then return end
+    
+    -- สร้าง Frame ใน MainPage
+    self.UI.MainFrame = Instance.new("Frame")
+    self.UI.MainFrame.Name = "PurchaserFrame"
+    self.UI.MainFrame.Size = UDim2.new(1, -30, 0, 220)
+    self.UI.MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    self.UI.MainFrame.BorderSizePixel = 0
+    self.UI.MainFrame.LayoutOrder = 17 -- ต่อจาก Float
+    self.UI.MainFrame.Parent = MainPage
+    
+    local stroke = Instance.new("UIStroke", self.UI.MainFrame)
+    stroke.Color = Color3.fromRGB(255, 200, 100)
+    stroke.Thickness = 1
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Name = "PurchaserTitle"
+    title.Size = UDim2.new(1, -20, 0, 26)
+    title.Position = UDim2.new(0, 10, 0, 8)
+    title.BackgroundTransparency = 1
+    title.Text = "🛒 ITEM PURCHASER v3.1"
+    title.TextColor3 = Color3.fromRGB(255, 200, 100)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 15
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = self.UI.MainFrame
+    
+    -- Subtitle
+    local sub = Instance.new("TextLabel")
+    sub.Size = UDim2.new(1, -20, 0, 20)
+    sub.Position = UDim2.new(0, 10, 0, 32)
+    sub.BackgroundTransparency = 1
+    sub.Text = "คลิกซื้อ/หยิบไอเท็มอัตโนมัติ"
+    sub.TextColor3 = Color3.fromRGB(180, 180, 220)
+    sub.Font = Enum.Font.Gotham
+    sub.TextSize = 11
+    sub.TextXAlignment = Enum.TextXAlignment.Left
+    sub.Parent = self.UI.MainFrame
+    
+    -- Control Buttons
+    local controls = Instance.new("Frame")
+    controls.Size = UDim2.new(1, -10, 0, 30)
+    controls.Position = UDim2.new(0, 5, 0, 190)
+    controls.BackgroundTransparency = 1
+    controls.Parent = self.UI.MainFrame
+    
+    local scanBtn = Instance.new("TextButton")
+    scanBtn.Name = "ControlBtn"
+    scanBtn.Size = UDim2.new(0.3, 0, 1, 0)
+    scanBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+    scanBtn.Text = "SCAN"
+    scanBtn.Font = Enum.Font.GothamBold
+    scanBtn.TextSize = 11
+    scanBtn.Parent = controls
+    
+    self.UI.AmountBox = Instance.new("TextBox")
+    self.UI.AmountBox.Size = UDim2.new(0.25, 0, 1, 0)
+    self.UI.AmountBox.Position = UDim2.new(0.32, 0, 0, 0)
+    self.UI.AmountBox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    self.UI.AmountBox.Text = "1"
+    self.UI.AmountBox.TextColor3 = Color3.new(1, 1, 1)
+    self.UI.AmountBox.Font = Enum.Font.GothamBold
+    self.UI.AmountBox.TextSize = 11
+    self.UI.AmountBox.ClearTextOnFocus = false
+    self.UI.AmountBox.Parent = controls
+    
+    local autoBtn = Instance.new("TextButton")
+    autoBtn.Size = UDim2.new(0.4, 0, 1, 0)
+    autoBtn.Position = UDim2.new(0.6, 0, 0, 0)
+    autoBtn.BackgroundColor3 = Color3.fromRGB(140, 100, 200)
+    autoBtn.Text = "AUTO"
+    autoBtn.Font = Enum.Font.GothamBold
+    autoBtn.TextSize = 11
+    autoBtn.Parent = controls
+    
+    -- Status
+    self.UI.StatusLabel = Instance.new("TextLabel")
+    self.UI.StatusLabel.Size = UDim2.new(1, -10, 0, 25)
+    self.UI.StatusLabel.Position = UDim2.new(0, 5, 1, -25)
+    self.UI.StatusLabel.BackgroundTransparency = 1
+    self.UI.StatusLabel.Text = "พร้อมสแกน..."
+    self.UI.StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
+    self.UI.StatusLabel.Font = Enum.Font.Gotham
+    self.UI.StatusLabel.TextSize = 10
+    self.UI.StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    self.UI.StatusLabel.Parent = self.UI.MainFrame
+    
+    -- Events
+    scanBtn.MouseButton1Click:Connect(function()
+        scanBtn.Text = "Scanning..."
+        self:ScanItems()
+        task.wait(1)
+        scanBtn.Text = "SCAN"
+    end)
+    
+    self.UI.AmountBox.FocusLost:Connect(function()
+        local num = tonumber(self.UI.AmountBox.Text)
+        if num and num >= 1 and num <= 10 then
+            self.Settings.Amount = math.floor(num)
+        end
+        self.UI.AmountBox.Text = tostring(self.Settings.Amount)
+    end)
+    
+    autoBtn.MouseButton1Click:Connect(function()
+        self.Settings.AutoPurchase = not self.Settings.AutoPurchase
+        autoBtn.Text = self.Settings.AutoPurchase and "AUTO: ON" or "AUTO"
+        autoBtn.BackgroundColor3 = self.Settings.AutoPurchase and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(140, 100, 200)
+    end)
+end
+
+function ItemPurchaser:Toggle()
+    self.Enabled = not self.Enabled
+    if not self.UI.MainFrame then
+        self:CreateUI()
+    end
+    
+    if self.Enabled then
+        self:ScanItems()
+        task.spawn(function()
+            while self.Enabled do
+                task.wait(5)
+                self:ScanItems()
+            end
+        end)
+    end
+end
+
+-- เพิ่มปุ่ม Toggle ใน Main Page
+local PurchaserToggleBtn = Instance.new("TextButton")
+PurchaserToggleBtn.Name = "OpenPurchaser"
+PurchaserToggleBtn.Size = UDim2.new(1, -30, 0, 36)
+PurchaserToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+PurchaserToggleBtn.Text = "OPEN ITEM PURCHASER"
+PurchaserToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+PurchaserToggleBtn.Font = Enum.Font.GothamBold
+PurchaserToggleBtn.TextSize = 13
+PurchaserToggleBtn.BorderSizePixel = 0
+PurchaserToggleBtn.LayoutOrder = 17.5 -- ระหว่าง PurchaserFrame กับ Settings
+PurchaserToggleBtn.Parent = MainPage
+
+PurchaserToggleBtn.MouseEnter:Connect(function()
+    TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 180, 80)}):Play()
+end)
+
+PurchaserToggleBtn.MouseLeave:Connect(function()
+    local color = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+    TweenService:Create(PurchaserToggleBtn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+end)
+
+PurchaserToggleBtn.MouseButton1Click:Connect(function()
+    ItemPurchaser:Toggle()
+    PurchaserToggleBtn.Text = ItemPurchaser.Enabled and "CLOSE ITEM PURCHASER" or "OPEN ITEM PURCHASER"
+    PurchaserToggleBtn.BackgroundColor3 = ItemPurchaser.Enabled and Color3.fromRGB(60, 160, 80) or Color3.fromRGB(255, 150, 50)
+    
+    if ItemPurchaser.UI.MainFrame then
+        ItemPurchaser.UI.MainFrame.Visible = ItemPurchaser.Enabled
+    end
+end)
+
+sg.Destroying:Connect(function()
+    ItemPurchaser.Enabled = false
+end)
+
+print("[ItemPurchaser] v3.1 UI ใน Main Tab โหลดเสร็จแล้ว")
+print("[ItemPurchaser] กด 'OPEN ITEM PURCHASER' เพื่อเปิดการใช้งาน")
 
 -- ============================================================
 -- สิ้นสุดส่วน Settings
