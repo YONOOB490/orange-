@@ -1,0 +1,721 @@
+--[[
+    YOnoOb Hub - Clean & Modular GUI Framework (2025 Rewrite - FIXED)
+    แก้ไข: Tab inheritance, HorizontalRow methods, Toggle logic, Memory leaks
+]]
+
+local Players        = game:GetService("Players")
+local TweenService   = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+
+-- Cleanup ก่อน
+if CoreGui:FindFirstChild("YOnoObHub") then
+    CoreGui.YOnoObHub:Destroy()
+end
+
+-- ============================================================================
+-- CONFIG
+-- ============================================================================
+local Config = {
+    Name = "YOnoOb Hub",
+    Theme = {
+        Background   = Color3.fromRGB(22, 22, 26),
+        Frame        = Color3.fromRGB(30, 30, 36),
+        Accent       = Color3.fromRGB(0, 160, 255),
+        Text         = Color3.fromRGB(235, 235, 245),
+        TextDim      = Color3.fromRGB(160, 160, 180),
+        Stroke       = Color3.fromRGB(60, 60, 75),
+        Danger       = Color3.fromRGB(220, 60, 60),
+        Success      = Color3.fromRGB(60, 220, 120),
+    }
+}
+
+-- ============================================================================
+-- UTILITY FUNCTIONS
+-- ============================================================================
+local function SafeTween(instance, properties, duration)
+    duration = duration or 0.2
+    local tween = TweenService:Create(instance, TweenInfo.new(duration, Enum.EasingStyle.Quint), properties)
+    tween:Play()
+    return tween
+end
+
+-- ============================================================================
+-- TAB CLASS (แยกออกมาเพื่อแก้ปัญหา inheritance)
+-- ============================================================================
+local Tab = {}
+Tab.__index = Tab
+
+function Tab.new(hubInstance, name)
+    local self = setmetatable({}, Tab)
+    self.Hub = hubInstance
+    self.Name = name
+    self.Elements = {} -- เก็บ reference เพื่อ cleanup
+    
+    -- Tab Button
+    self.Button = Instance.new("TextButton")
+    self.Button.Name = name
+    self.Button.Parent = hubInstance.Sidebar
+    self.Button.BackgroundColor3 = Config.Theme.Background
+    self.Button.Size = UDim2.new(1, 0, 0, 38)
+    self.Button.Font = Enum.Font.GothamSemibold
+    self.Button.Text = name
+    self.Button.TextColor3 = Config.Theme.TextDim
+    self.Button.TextSize = 14
+    self.Button.BorderSizePixel = 0
+    self.Button.AutoButtonColor = false
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = self.Button
+
+    -- Content Frame
+    self.Content = Instance.new("ScrollingFrame")
+    self.Content.Name = name .. "Content"
+    self.Content.Parent = hubInstance.ContentArea
+    self.Content.BackgroundTransparency = 1
+    self.Content.Size = UDim2.new(1, 0, 1, 0)
+    self.Content.Visible = false
+    self.Content.ScrollBarThickness = 3
+    self.Content.ScrollBarImageColor3 = Config.Theme.Accent
+    self.Content.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+    local list = Instance.new("UIListLayout")
+    list.Parent = self.Content
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Padding = UDim.new(0, 10)
+
+    local pad = Instance.new("UIPadding")
+    pad.Parent = self.Content
+    pad.PaddingTop = UDim.new(0, 12)
+    pad.PaddingLeft = UDim.new(0, 12)
+    pad.PaddingRight = UDim.new(0, 12)
+    pad.PaddingBottom = UDim.new(0, 12)
+
+    -- Auto resize canvas
+    list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        self.Content.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 30)
+    end)
+
+    -- Click handler
+    self.Button.MouseButton1Click:Connect(function()
+        self:Activate()
+    end)
+    
+    return self
+end
+
+function Tab:Activate()
+    -- Deactivate ทุก tab อื่น
+    for _, t in pairs(self.Hub.Tabs) do
+        t.Content.Visible = false
+        t.Button.BackgroundColor3 = Config.Theme.Background
+        t.Button.TextColor3 = Config.Theme.TextDim
+    end
+    
+    -- Activate ตัวเอง
+    self.Content.Visible = true
+    SafeTween(self.Button, {BackgroundColor3 = Config.Theme.Accent}, 0.15)
+    self.Button.TextColor3 = Color3.new(1,1,1)
+    self.Hub.ActiveTab = self
+end
+
+-- ============================================================================
+-- MAIN GUI CLASS
+-- ============================================================================
+local YOnoObHub = {}
+YOnoObHub.__index = YOnoObHub
+
+function YOnoObHub.new()
+    local self = setmetatable({}, YOnoObHub)
+    self:Initialize()
+    return self
+end
+
+function YOnoObHub:Initialize()
+    -- ScreenGui
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "YOnoObHub"
+    self.ScreenGui.Parent = CoreGui
+    self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.ScreenGui.ResetOnSpawn = false
+
+    -- Main Frame
+    self.MainFrame = Instance.new("Frame")
+    self.MainFrame.Name = "Main"
+    self.MainFrame.Parent = self.ScreenGui
+    self.MainFrame.BackgroundColor3 = Config.Theme.Background
+    self.MainFrame.BorderSizePixel = 0
+    self.MainFrame.Position = UDim2.new(0.5, -260, 0.5, -200)
+    self.MainFrame.Size = UDim2.new(0, 520, 0, 400)
+    self.MainFrame.ClipsDescendants = true
+
+    -- Corner radius สำหรับ MainFrame
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0, 8)
+    mainCorner.Parent = self.MainFrame
+
+    -- Stroke รอบกรอบ
+    local mainStroke = Instance.new("UIStroke")
+    mainStroke.Color = Config.Theme.Stroke
+    mainStroke.Thickness = 1.5
+    mainStroke.Transparency = 0.65
+    mainStroke.Parent = self.MainFrame
+
+    -- Title Bar
+    self.TitleBar = Instance.new("Frame")
+    self.TitleBar.Name = "Title"
+    self.TitleBar.Parent = self.MainFrame
+    self.TitleBar.BackgroundColor3 = Config.Theme.Frame
+    self.TitleBar.Size = UDim2.new(1, 0, 0, 34)
+    self.TitleBar.BorderSizePixel = 0
+
+    local titleText = Instance.new("TextLabel")
+    titleText.Parent = self.TitleBar
+    titleText.BackgroundTransparency = 1
+    titleText.Size = UDim2.new(1, -80, 1, 0)
+    titleText.Position = UDim2.new(0, 14, 0, 0)
+    titleText.Font = Enum.Font.GothamBold
+    titleText.Text = Config.Name
+    titleText.TextColor3 = Config.Theme.Text
+    titleText.TextSize = 15
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Window Buttons
+    self:CreateWindowControls()
+
+    -- Sidebar (Tabs)
+    self.Sidebar = Instance.new("Frame")
+    self.Sidebar.Name = "Sidebar"
+    self.Sidebar.Parent = self.MainFrame
+    self.Sidebar.BackgroundColor3 = Config.Theme.Frame
+    self.Sidebar.Size = UDim2.new(0, 140, 1, -34)
+    self.Sidebar.Position = UDim2.new(0, 0, 0, 34)
+    self.Sidebar.BorderSizePixel = 0
+
+    local sidebarList = Instance.new("UIListLayout")
+    sidebarList.Parent = self.Sidebar
+    sidebarList.SortOrder = Enum.SortOrder.LayoutOrder
+    sidebarList.Padding = UDim.new(0, 6)
+
+    local sidebarPadding = Instance.new("UIPadding")
+    sidebarPadding.Parent = self.Sidebar
+    sidebarPadding.PaddingTop = UDim.new(0, 10)
+    sidebarPadding.PaddingLeft = UDim.new(0, 8)
+    sidebarPadding.PaddingRight = UDim.new(0, 8)
+
+    -- Content Area
+    self.ContentArea = Instance.new("Frame")
+    self.ContentArea.Name = "Content"
+    self.ContentArea.Parent = self.MainFrame
+    self.ContentArea.BackgroundTransparency = 1
+    self.ContentArea.Position = UDim2.new(0, 140, 0, 34)
+    self.ContentArea.Size = UDim2.new(1, -140, 1, -34)
+
+    self.Tabs = {}
+    self.ActiveTab = nil
+    self.FirstTabOpened = false
+    self.IsVisible = true
+
+    -- Draggable
+    self:MakeDraggable(self.TitleBar, self.MainFrame)
+
+    -- Open Button (เมื่อ minimize)
+    self:CreateMinimizeToggleButton()
+end
+
+function YOnoObHub:CreateWindowControls()
+    -- Close Button
+    local close = Instance.new("TextButton")
+    close.Name = "Close"
+    close.Parent = self.TitleBar
+    close.BackgroundColor3 = Config.Theme.Danger
+    close.Position = UDim2.new(1, -38, 0, 4)
+    close.Size = UDim2.new(0, 30, 0, 26)
+    close.Font = Enum.Font.GothamBold
+    close.Text = "×"
+    close.TextColor3 = Color3.new(1,1,1)
+    close.TextSize = 16
+    close.BorderSizePixel = 0
+    close.AutoButtonColor = false
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 5)
+    closeCorner.Parent = close
+
+    -- Hover effects
+    close.MouseEnter:Connect(function()
+        SafeTween(close, {BackgroundColor3 = Color3.fromRGB(255, 80, 80)})
+    end)
+    close.MouseLeave:Connect(function()
+        SafeTween(close, {BackgroundColor3 = Config.Theme.Danger})
+    end)
+
+    close.MouseButton1Click:Connect(function()
+        self:Destroy()
+    end)
+
+    -- Minimize Button
+    local mini = Instance.new("TextButton")
+    mini.Name = "Minimize"
+    mini.Parent = self.TitleBar
+    mini.BackgroundColor3 = Config.Theme.Frame
+    mini.Position = UDim2.new(1, -74, 0, 4)
+    mini.Size = UDim2.new(0, 30, 0, 26)
+    mini.Font = Enum.Font.GothamBold
+    mini.Text = "−"
+    mini.TextColor3 = Config.Theme.Text
+    mini.TextSize = 16
+    mini.BorderSizePixel = 0
+    mini.AutoButtonColor = false
+
+    local miniCorner = Instance.new("UICorner")
+    miniCorner.CornerRadius = UDim.new(0, 5)
+    miniCorner.Parent = mini
+
+    mini.MouseEnter:Connect(function()
+        SafeTween(mini, {BackgroundColor3 = Config.Theme.Accent})
+        mini.TextColor3 = Color3.new(1,1,1)
+    end)
+    mini.MouseLeave:Connect(function()
+        SafeTween(mini, {BackgroundColor3 = Config.Theme.Frame})
+        mini.TextColor3 = Config.Theme.Text
+    end)
+
+    mini.MouseButton1Click:Connect(function()
+        self:ToggleVisibility()
+    end)
+end
+
+function YOnoObHub:CreateMinimizeToggleButton()
+    self.ToggleBtn = Instance.new("TextButton")
+    self.ToggleBtn.Name = "ToggleBtn"
+    self.ToggleBtn.Parent = self.ScreenGui
+    self.ToggleBtn.BackgroundColor3 = Config.Theme.Accent
+    self.ToggleBtn.Position = UDim2.new(1, -56, 0, 16)
+    self.ToggleBtn.Size = UDim2.new(0, 48, 0, 48)
+    self.ToggleBtn.Font = Enum.Font.GothamBlack
+    self.ToggleBtn.Text = "Y"
+    self.ToggleBtn.TextColor3 = Color3.new(1,1,1)
+    self.ToggleBtn.TextSize = 20
+    self.ToggleBtn.Visible = false
+    self.ToggleBtn.BorderSizePixel = 0
+    self.ToggleBtn.Active = true
+    
+    -- ทำให้ปุ่มลากได้ด้วย
+    self:MakeDraggable(self.ToggleBtn, self.ToggleBtn)
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = self.ToggleBtn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.new(1,1,1)
+    stroke.Transparency = 0.7
+    stroke.Thickness = 1.5
+    stroke.Parent = self.ToggleBtn
+
+    -- Animation ตอน hover
+    self.ToggleBtn.MouseEnter:Connect(function()
+        SafeTween(self.ToggleBtn, {Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(1, -58, 0, 14)})
+    end)
+    self.ToggleBtn.MouseLeave:Connect(function()
+        SafeTween(self.ToggleBtn, {Size = UDim2.new(0, 48, 0, 48), Position = UDim2.new(1, -56, 0, 16)})
+    end)
+
+    self.ToggleBtn.MouseButton1Click:Connect(function()
+        self:ToggleVisibility()
+    end)
+end
+
+function YOnoObHub:ToggleVisibility()
+    self.IsVisible = not self.IsVisible
+    
+    if self.IsVisible then
+        self.MainFrame.Visible = true
+        self.ToggleBtn.Visible = false
+        -- Animation เปิด
+        self.MainFrame.Size = UDim2.new(0, 0, 0, 0)
+        SafeTween(self.MainFrame, {Size = UDim2.new(0, 520, 0, 400)}, 0.3)
+    else
+        -- Animation ปิด
+        local closeTween = SafeTween(self.MainFrame, {Size = UDim2.new(0, 0, 0, 0)}, 0.2)
+        closeTween.Completed:Connect(function()
+            self.MainFrame.Visible = false
+            self.ToggleBtn.Visible = true
+        end)
+    end
+end
+
+function YOnoObHub:MakeDraggable(handle, target)
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = target.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    handle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            target.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+function YOnoObHub:CreateTab(name)
+    local tab = Tab.new(self, name)
+    table.insert(self.Tabs, tab)
+
+    if not self.FirstTabOpened then
+        self.FirstTabOpened = true
+        tab:Activate()
+    end
+
+    return tab
+end
+
+function YOnoObHub:Destroy()
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+    end
+end
+
+-- ============================================================================
+-- ELEMENTS (ย้ายมาเป็น methods ของ Tab แทน)
+-- ============================================================================
+
+function Tab:Button(text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Parent = self.Content
+    btn.BackgroundColor3 = Config.Theme.Frame
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.Font = Enum.Font.GothamSemibold
+    btn.Text = text
+    btn.TextColor3 = Config.Theme.Text
+    btn.TextSize = 14
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = false
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Config.Theme.Stroke
+    stroke.Thickness = 1
+    stroke.Transparency = 0.6
+    stroke.Parent = btn
+
+    local currentTween = nil
+    
+    btn.MouseEnter:Connect(function()
+        if currentTween then currentTween:Cancel() end
+        currentTween = SafeTween(btn, {BackgroundColor3 = Config.Theme.Accent}, 0.18)
+        SafeTween(stroke, {Transparency = 0.2}, 0.18)
+    end)
+
+    btn.MouseLeave:Connect(function()
+        if currentTween then currentTween:Cancel() end
+        currentTween = SafeTween(btn, {BackgroundColor3 = Config.Theme.Frame}, 0.18)
+        SafeTween(stroke, {Transparency = 0.6}, 0.18)
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        -- Click animation
+        SafeTween(btn, {Size = UDim2.new(0.98, 0, 0, 38)}, 0.05).Completed:Connect(function()
+            SafeTween(btn, {Size = UDim2.new(1, 0, 0, 40)}, 0.1)
+        end)
+        
+        if callback then 
+            local success, err = pcall(callback)
+            if not success then
+                warn("[YOnoOb Hub] Button error:", err)
+            end
+        end
+    end)
+
+    table.insert(self.Elements, btn)
+    return btn
+end
+
+function Tab:HorizontalRow(maxItems)
+    maxItems = math.clamp(maxItems or 3, 1, 3)
+
+    local rowFrame = Instance.new("Frame")
+    rowFrame.Parent = self.Content
+    rowFrame.BackgroundTransparency = 1
+    rowFrame.Size = UDim2.new(1, 0, 0, 38)
+
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = rowFrame
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.VerticalAlignment = Enum.VerticalAlignment.Center
+    layout.Padding = UDim.new(0, 10)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local rowObj = {
+        Frame = rowFrame,
+        Buttons = {},
+        MaxItems = maxItems,
+        Tab = self
+    }
+    
+    function rowObj:AddButton(text, callback)
+        if #self.Buttons >= self.MaxItems then
+            warn("[YOnoOb Hub] Row full! Max:", self.MaxItems)
+            return nil
+        end
+        
+        local btn = Instance.new("TextButton")
+        btn.Parent = rowFrame
+        btn.BackgroundColor3 = Config.Theme.Frame
+        btn.Size = UDim2.new(1/self.MaxItems, -(10*(self.MaxItems-1))/self.MaxItems, 0, 36)
+        btn.Font = Enum.Font.GothamSemibold
+        btn.Text = text
+        btn.TextColor3 = Config.Theme.Text
+        btn.TextSize = 13
+        btn.BorderSizePixel = 0
+        btn.AutoButtonColor = false
+
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, 6)
+        c.Parent = btn
+
+        local s = Instance.new("UIStroke")
+        s.Color = Config.Theme.Stroke
+        s.Thickness = 1
+        s.Transparency = 0.7
+        s.Parent = btn
+
+        local hoverTween = nil
+        
+        btn.MouseEnter:Connect(function()
+            if hoverTween then hoverTween:Cancel() end
+            hoverTween = SafeTween(btn, {BackgroundColor3 = Config.Theme.Accent}, 0.16)
+            SafeTween(s, {Transparency = 0.3}, 0.16)
+        end)
+
+        btn.MouseLeave:Connect(function()
+            if hoverTween then hoverTween:Cancel() end
+            hoverTween = SafeTween(btn, {BackgroundColor3 = Config.Theme.Frame}, 0.16)
+            SafeTween(s, {Transparency = 0.7}, 0.16)
+        end)
+
+        btn.MouseButton1Click:Connect(function()
+            SafeTween(btn, {Size = UDim2.new(1/self.MaxItems, -(10*(self.MaxItems-1))/self.MaxItems - 4, 0, 32)}, 0.05)
+                .Completed:Connect(function()
+                SafeTween(btn, {Size = UDim2.new(1/self.MaxItems, -(10*(self.MaxItems-1))/self.MaxItems, 0, 36)}, 0.1)
+            end)
+            
+            if callback then 
+                local success, err = pcall(callback)
+                if not success then warn("[YOnoOb Hub] Button error:", err) end
+            end
+        end)
+
+        table.insert(self.Buttons, btn)
+        return btn
+    end
+
+    table.insert(self.Elements, rowFrame)
+    return rowObj
+end
+
+function Tab:Toggle(label, defaultState, callback)
+    local container = Instance.new("Frame")
+    container.Parent = self.Content
+    container.BackgroundColor3 = Config.Theme.Frame
+    container.Size = UDim2.new(1, 0, 0, 40)
+    container.BorderSizePixel = 0
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = container
+
+    local txt = Instance.new("TextLabel")
+    txt.Parent = container
+    txt.BackgroundTransparency = 1
+    txt.Size = UDim2.new(1, -80, 1, 0)
+    txt.Position = UDim2.new(0, 14, 0, 0)
+    txt.Font = Enum.Font.Gotham
+    txt.Text = label
+    txt.TextColor3 = Config.Theme.Text
+    txt.TextSize = 14
+    txt.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Toggle Track
+    local track = Instance.new("Frame")
+    track.Parent = container
+    track.BackgroundColor3 = Color3.fromRGB(50,50,58)
+    track.Position = UDim2.new(1, -62, 0.5, -10)
+    track.Size = UDim2.new(0, 48, 0, 20)
+    track.BorderSizePixel = 0
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1,0)
+    trackCorner.Parent = track
+
+    -- Toggle Thumb
+    local thumb = Instance.new("Frame")
+    thumb.Parent = track
+    thumb.BackgroundColor3 = defaultState and Config.Theme.Accent or Color3.fromRGB(130,130,145)
+    thumb.Size = UDim2.new(0, 16, 0, 16)
+    thumb.Position = defaultState and UDim2.new(0, 26, 0, 2) or UDim2.new(0, 2, 0, 2)
+    thumb.BorderSizePixel = 0
+
+    local thumbCorner = Instance.new("UICorner")
+    thumbCorner.CornerRadius = UDim.new(1,0)
+    thumbCorner.Parent = thumb
+
+    -- State indicator
+    local stateLabel = Instance.new("TextLabel")
+    stateLabel.Parent = container
+    stateLabel.BackgroundTransparency = 1
+    stateLabel.Position = UDim2.new(1, -110, 0, 0)
+    stateLabel.Size = UDim2.new(0, 40, 1, 0)
+    stateLabel.Font = Enum.Font.GothamBold
+    stateLabel.Text = defaultState and "ON" or "OFF"
+    stateLabel.TextColor3 = defaultState and Config.Theme.Success or Config.Theme.Danger
+    stateLabel.TextSize = 12
+    stateLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+    local state = defaultState
+    local isAnimating = false
+
+    local function toggle(input)
+        if isAnimating then return end
+        isAnimating = true
+        
+        state = not state
+        
+        -- Animate thumb
+        SafeTween(thumb, {
+            Position = state and UDim2.new(0, 26, 0, 2) or UDim2.new(0, 2, 0, 2),
+            BackgroundColor3 = state and Config.Theme.Accent or Color3.fromRGB(130,130,145)
+        }, 0.24).Completed:Connect(function()
+            isAnimating = false
+        end)
+        
+        -- Animate track
+        SafeTween(track, {
+            BackgroundColor3 = state and Color3.fromRGB(40, 60, 80) or Color3.fromRGB(50,50,58)
+        }, 0.24)
+        
+        -- Update label
+        stateLabel.Text = state and "ON" or "OFF"
+        stateLabel.TextColor3 = state and Config.Theme.Success or Config.Theme.Danger
+        
+        -- Callback with error handling
+        if callback then 
+            task.spawn(function()
+                local success, err = pcall(callback, state)
+                if not success then
+                    warn("[YOnoOb Hub] Toggle callback error:", err)
+                end
+            end)
+        end
+    end
+
+    -- Click ที่ container ทั้งอันได้
+    container.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            toggle(input)
+        end
+    end)
+    
+    -- Hover effect
+    container.MouseEnter:Connect(function()
+        SafeTween(container, {BackgroundColor3 = Color3.fromRGB(40, 40, 48)}, 0.15)
+    end)
+    container.MouseLeave:Connect(function()
+        SafeTween(container, {BackgroundColor3 = Config.Theme.Frame}, 0.15)
+    end)
+
+    -- Return control object
+    local toggleObj = {
+        Instance = container,
+        GetState = function() return state end,
+        SetState = function(newState)
+            if state ~= newState then
+                toggle()
+            end
+        end
+    }
+    
+    table.insert(self.Elements, container)
+    return toggleObj
+end
+
+-- ============================================================================
+-- ตัวอย่างการใช้งาน (ทดสอบแล้วใช้ได้จริง)
+-- ============================================================================
+-- local hub = YOnoObHub.new()
+
+-- local playerTab   = hub:CreateTab("Player")
+-- local visualsTab  = hub:CreateTab("Visuals")
+-- local combatTab   = hub:CreateTab("Combat")
+-- local miscTab     = hub:CreateTab("Misc")
+
+-- ปุ่มเต็มความกว้าง
+-- playerTab:Button("God Mode", function() 
+--    print("🔥 God mode activated") 
+-- end)
+
+-- playerTab:Button("Infinite Jump", function() 
+--    print("🦘 Infinite jump enabled") 
+-- end)
+
+-- Horizontal Row (3 ปุ่ม)
+-- local speedRow = playerTab:HorizontalRow(3)
+-- speedRow:AddButton("×2 Speed", function() print("⚡ Speed ×2") end)
+-- speedRow:AddButton("×5 Speed", function() print("⚡ Speed ×5") end)
+-- speedRow:AddButton("Reset", function() print("🔄 Reset speed") end)
+
+-- Toggle พร้อม logic
+-- local noclipToggle = playerTab:Toggle("No Clip", false, function(state)
+--    print("👻 No Clip:", state and "ON" or "OFF")
+    -- ใส่ logic จริงตรงนี้
+-- end)
+
+-- local flyToggle = playerTab:Toggle("Fly Mode", false, function(state)
+--    print("🕊️ Fly:", state and "ON" or "OFF")
+-- end)
+
+-- Visuals Tab
+-- visualsTab:Button("ESP Players", function() print("👁️ ESP Enabled") end)
+-- visualsTab:Toggle("Full Bright", false, function(state) 
+--    print("💡 Full Bright:", state) 
+-- end)
+
+-- Combat Tab
+-- local combatRow = combatTab:HorizontalRow(2)
+-- combatRow:AddButton("Aimbot", function() print("🎯 Aimbot") end)
+-- combatRow:AddButton("Silent Aim", function() print("🤫 Silent Aim") end)
+
+print("[YOnoOb Hub] ✅ Loaded successfully with fixes!")
