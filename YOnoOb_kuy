@@ -9,6 +9,9 @@
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService       = game:GetService("RunService")
+local Workspace        = game:GetService("Workspace")  
+local Camera           = workspace.CurrentCamera    
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1128,3 +1131,280 @@ end
 -- ============================================================================
 
 local hub = Hub.new()
+-- ============================================================================
+-- ส่วนเพิ่มเติม: แท็บ Player
+-- ============================================================================
+
+local playerTab = hub:CreateTab("Player")
+
+-- ตัวแปรเก็บ_REFERENCE_ของสไลด์เพื่อนำไปใช้ตอนตัวละครรีสปอน
+local walkSlider
+local jumpSlider
+
+-- 1. สไลด์ปรับความเร็ว (WalkSpeed) 1-400
+walkSlider = playerTab:Slider("Walk Speed", 1, 400, 16, 1, function(v)
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = v end
+    end
+end)
+
+-- 2. สไลด์ปรับการกระโดด (JumpPower) 1-400
+jumpSlider = playerTab:Slider("Jump Power", 1, 400, 50, 1, function(v)
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.JumpPower = v end
+    end
+end)
+
+playerTab:Separator() -- เส้นคั่น
+
+-- 3. ปุ่มรีเซ็ตค่าเดิม (WalkSpeed 16, JumpPower 50)
+playerTab:Button("Reset Stats", function()
+    -- ใช้ .Set() เพื่อปรับค่าสไลด์กลับไปที่เดิม (จะเรียก Callback อัตโนมัติ)
+    walkSlider:Set(16)
+    jumpSlider:Set(50)
+end)
+
+playerTab:Separator()
+
+-- 4. ปุ่มอันตราย (ตัวอย่างเพิ่มเติม)
+playerTab:ButtonDanger("Reset Character", function()
+    LocalPlayer:LoadCharacter()
+end)
+
+-- ============================================================================
+-- ระบบรองรับเมื่อตัวละครตายแล้วเกิดใหม่ (CharacterAdded)
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.5) -- รอให้ Humanoid โหลดเสร็จ
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        -- ดึงค่าล่าสุดจากสไลด์มาตั้งค่าให้ตัวละครใหม่
+        hum.WalkSpeed = walkSlider:Get()
+        hum.JumpPower = jumpSlider:Get()
+    end
+end)
+
+playerTab:Separator()
+playerTab:Label("Abilities", "header") -- หัวข้อหมวดความสามารถ
+
+-- ตัวแปรเก็บ Connection เพื่อไว้ลบทีหลัง
+local jumpConn
+local noclipConn
+
+-- 1. Infinite Jump (กระโดดไม่จำกัด)
+playerTab:Toggle("Infinite Jump", false, function(state)
+    if state then
+        -- เชื่อมต่อเหตุการณ์เมื่อกดกระโดด
+        jumpConn = UserInputService.JumpRequest:Connect(function()
+            local char = LocalPlayer.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then 
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping) 
+                end
+            end
+        end)
+    else
+        -- ยกเลิกการเชื่อมต่อเมื่อปิด
+        if jumpConn then 
+            jumpConn:Disconnect() 
+            jumpConn = nil 
+        end
+    end
+end)
+
+-- 2. No Clip (เดินทะลุวัตถุ)
+playerTab:Toggle("No Clip", false, function(state)
+    if state then
+        -- ทำงานทุกเฟรมเพื่อปิดการชนของชิ้นส่วนตัวละคร
+        noclipConn = RunService.Stepped:Connect(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then 
+                        part.CanCollide = false 
+                    end
+                end
+            end
+        end)
+    else
+        -- ยกเลิกการเชื่อมต่อเมื่อปิด
+        if noclipConn then 
+            noclipConn:Disconnect() 
+            noclipConn = nil 
+        end
+        
+        -- คืนค่าการชนให้ตัวละครทันทีที่ปิด
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then 
+                    part.CanCollide = true 
+                end
+            end
+        end
+    end
+end)
+-- ============================================================================
+-- ส่วนเพิ่มเติม: Teleportation (Click TP & Player TP)
+
+playerTab:Separator()
+playerTab:Label("Teleportation", "header")
+
+-- ตัวแปรเก็บ Connection สำหรับ Click TP
+local clickTpConn
+local touchTpConn
+
+-- 1. Click to TP (รองรับมือถือ/คอมพิวเตอร์)
+-- วิธีใช้: เปิดสวิตช์ แล้วแตะหน้าจอเกมเพื่อวาร์ปไปจุดนั้น
+local clickTpToggle = playerTab:Toggle("Click to TP", false, function(state)
+    if state then
+        -- ฟังก์ชันตรวจสอบว่าแตะโดน GUI หรือไม่
+        local function IsOverGui(inputPos)
+            if not hub.Win then return false end
+            local absPos = hub.Win.AbsolutePosition
+            local absSize = hub.Win.AbsoluteSize
+            return inputPos.X >= absPos.X and inputPos.X <= absPos.X + absSize.X and
+                   inputPos.Y >= absPos.Y and inputPos.Y <= absPos.Y + absSize.Y
+        end
+
+        -- ฟังก์ชันวาร์ป
+        local function TeleportToPosition(pos)
+            local char = LocalPlayer.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+
+            -- ยิง Ray จากกล้องไปหาจุดที่แตะ
+            local unitRay = Camera:ScreenPointToRay(pos.X, pos.Y)
+            local hitPart = Workspace:FindPartOnRay(unitRay, char)
+            
+            if hitPart then
+                -- วาร์ปไปเหนือจุดที่แตะเล็กน้อย (กันติดพื้น)
+                root.CFrame = CFrame.new(hitPart.Position + Vector3.new(0, 2.5, 0))
+            end
+        end
+
+        -- รองรับคอมพิวเตอร์ (Mouse)
+        clickTpConn = UserInputService.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                if not IsOverGui(inp.Position) then
+                    TeleportToPosition(inp.Position)
+                end
+            end
+        end)
+        -- รองรับมือถือ (Touch)
+        touchTpConn = UserInputService.TouchTap:Connect(function(pos, processed)
+            if not processed then -- ถ้าเกมไม่ได้ใช้ปุ่มนี้ไปแล้ว
+                if not IsOverGui(pos) then
+                    TeleportToPosition(pos)
+                end
+            end
+        end)
+    else
+        -- ปิดการทำงานเมื่อปิดสวิตช์
+        if clickTpConn then clickTpConn:Disconnect() end
+        if touchTpConn then touchTpConn:Disconnect() end
+    end
+end)
+
+playerTab:Label("Note: Tap screen to teleport", "dim")
+playerTab:Separator()
+
+-- 2. TP to Player (เลือกชื่อ หรือ พิมพ์ชื่อ)
+local tpGroup = playerTab:Group("Teleport to Player", false)
+
+-- --- ส่วนพิมพ์ชื่อ (Custom TextBox) ---
+local inputFrame = Frame{bg=Config.Theme.Frame, sz=UDim2.new(1,0,0,40), parent=tpGroup.Content}
+Corner(inputFrame, 8)
+Pad(inputFrame, 0, 8, 8, 0)
+
+local textBox = Instance.new("TextBox")
+textBox.BackgroundTransparency = 1
+textBox.TextColor3 = Config.Theme.Text
+textBox.Font = Config.Font.Regular
+textBox.TextSize = Config.Font.SizeMd
+textBox.PlaceholderText = "Type player name..."
+textBox.PlaceholderColor3 = Config.Theme.TextDim
+textBox.TextXAlignment = Enum.TextXAlignment.Left
+textBox.Size = UDim2.new(0.6, -10, 1, 0)
+textBox.Position = UDim2.new(0, 10, 0, 0)
+textBox.Parent = inputFrame
+
+local tpNameBtn = TextBtn{
+    text   = "TP",
+    font   = Config.Font.Bold,
+    size   = 12,
+    color  = Config.Theme.Text,
+    bg     = Config.Theme.Accent,
+    sz     = UDim2.new(0.35, -5, 0.8, 0),
+    pos    = UDim2.new(0.65, 5, 0.1, 0),
+    parent = inputFrame,
+}
+Corner(tpNameBtn, 6)
+tpNameBtn.MouseButton1Click:Connect(function()
+    local name = textBox.Text
+    if name and name ~= "" then
+        local target = Players:FindFirstChild(name)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.CFrame = target.Character.HumanoidRootPart.CFrame
+                textBox.Text = "" -- ล้างช่องพิมพ์
+            end
+        else
+            textBox.PlaceholderText = "Player not found!"
+            task.wait(1)
+            textBox.PlaceholderText = "Type player name..."
+        end
+    end
+end)
+
+tpGroup.Elements[#tpGroup.Elements + 1] = inputFrame
+
+-- --- ส่วนเลือกจากลิสต์ (Dropdown) ---
+local playerList = {}
+local function UpdatePlayerList()
+    playerList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(playerList, p.Name)
+        end
+    end
+    return playerList
+end
+
+local playerDropdown = tpGroup:Dropdown("Select Player", UpdatePlayerList(), 1, function(selected)
+    -- เมื่อเลือกชื่อ จะเก็บไว้แต่ยังไม่วาร์ป (ให้กดปุ่มด้านล่าง)
+end)
+
+-- ปุ่มรีเฟรชลิสต์ และ ปุ่มวาร์ป
+local tpRow = tpGroup:Row(2)
+tpRow:Add("Refresh List", function()
+    -- Hack: ต้องสร้าง Dropdown ใหม่เพื่ออัปเดตลิสต์ใน Framework นี้
+    -- หรือแค่แจ้งเตือนให้รู้ว่าต้องกดเลือกใหม่
+    playerDropdown:Set(UpdatePlayerList()[1] or "")
+end, "accent")
+
+tpRow:Add("TP to Selected", function()
+    local name = playerDropdown:Get()
+    if name and name ~= "" then
+        local target = Players:FindFirstChild(name)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")            if root then
+                root.CFrame = target.Character.HumanoidRootPart.CFrame
+            end
+        end
+    end
+end, "success")
+
+-- ============================================================================
+-- อัปเดตลิสต์ผู้เล่นอัตโนมัติเมื่อมีคนเข้า/ออก
+Players.PlayerAdded:Connect(function()
+    -- อัปเดตลิสต์ใน Dropdown (หมายเหตุ: Framework เดิมไม่รองรับ dynamic update โดยตรง
+    -- ดังนั้นเราจะอัปเดตตัวแปร playerList ไว้ใช้ตอนกด Refresh หรือสร้างใหม่ถ้าจำเป็น)
+    -- ในที่นี้เราใช้วิธีให้ผู้ใช้กด Refresh เพื่อความเสถียรของ UI
+end)
